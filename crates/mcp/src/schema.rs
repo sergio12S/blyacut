@@ -37,15 +37,19 @@ pub fn tools() -> Vec<Value> {
     ];
     for (name,description,schema,read_only) in [
   ("get_project","Read the live project and monotonic revision. Use its IDs for subsequent edits.",object(json!({}),vec![]),true),
-  ("get_timeline","Inspect live tracks, source boundaries and timeline duration.",object(json!({}),vec![]),true),
-  ("get_session","Read authorized folder, current export job and pending human-review proposal.",object(json!({}),vec![]),true),
+  ("get_timeline","Inspect live tracks, source boundaries, timeline duration and `warnings` (black gaps, audio running past the video).",object(json!({}),vec![]),true),
+  ("get_session","Read authorized folder, mode (review|autonomous), current export job (status, output, loudness, warnings) and pending human-review proposal.",object(json!({}),vec![]),true),
   ("import_media","Import existing video or audio from the authorized folder. Returns the updated project.",object(json!({"path":string}),vec!["path"]),false),
-  ("apply_edits","Atomically apply up to 20 edits with one Undo. Removal needs propose_edits. Times are integer milliseconds; trim uses source time, move/split use timeline time. gain_milli is 0–1000. Audio tracks do not ripple; video trim/delete/reorder ripple only their track.",batch.clone(),false),
+  ("apply_edits","Atomically apply up to 20 edits with one Undo. In review mode removals need propose_edits; in autonomous mode up to 100 edits incl. delete_clip apply directly. The result includes `warnings`. Times are integer milliseconds; trim uses source time, move/split use timeline time. gain_milli is 0–1000. Audio tracks do not ripple; video trim/delete/reorder ripple only their track.",batch.clone(),false),
   ("propose_edits","Preview up to 100 edits without changing the timeline. User approves or rejects in desktop UI. Required for removals and batches over 20. Approval fails after intervening edits.",batch,false),
   ("undo","Undo one entire action/batch at the expected revision.",object(json!({"expected_revision":revision}),vec!["expected_revision"]),false),
   ("redo","Redo one action/batch at the expected revision.",object(json!({"expected_revision":revision}),vec!["expected_revision"]),false),
   ("export_video","Start asynchronous H.264/AAC MP4 export to a NEW absolute path inside the authorized folder. Poll get_session for completion. One video track plus independent audio tracks supported.",object(json!({"expected_revision":revision,"output_path":string}),vec!["expected_revision","output_path"]),false),
   ("cancel_export","Request cancellation of current export; original media remains unchanged.",object(json!({}),vec![]),false),
+  ("preview_frame","Render what the export will show at one timeline instant (effects included) to a NEW absolute .png inside the authorized folder, then look at it. Default width 960.",object(json!({"time_ms":time,"output_path":string,"width":{"type":"integer","minimum":64,"maximum":3840}}),vec!["time_ms","output_path"]),false),
+  ("create_title_card","Render centered text (1–200 chars, up to 4 lines with \\n, Latin/Cyrillic) as a NEW .mp4 title clip in the project size inside the authorized folder and import it (import:false to skip). Colors are #RRGGBB. Returns asset_id; append it like any clip and add effects such as builtin-fade-in.",object(json!({"text":string,"output_path":string,"duration_ms":{"type":"integer","minimum":500,"maximum":60000},"text_color":string,"background_color":string,"import":{"type":"boolean"}}),vec!["text","output_path","duration_ms"]),false),
+  ("save_project","Save the live project as .blyacut inside the authorized folder (overwrites that project file). Media is referenced, not copied.",object(json!({"path":string}),vec!["path"]),false),
+  ("open_project","Replace the live project with a .blyacut file from the authorized folder; all its media must also be inside the folder.",object(json!({"path":string}),vec!["path"]),false),
  ] {tools.push(json!({"name":name,"description":description,"inputSchema":schema,"annotations":{"readOnlyHint":read_only,"destructiveHint":false,"openWorldHint":false}}));}
     tools
 }

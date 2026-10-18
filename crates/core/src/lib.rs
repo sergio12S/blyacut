@@ -112,6 +112,50 @@ impl Project {
             .max()
             .unwrap_or(0)
     }
+    /// Plain-language notes on how export will treat this timeline, for agents and the UI.
+    pub fn warnings(&self) -> Vec<String> {
+        let secs = |ms: u64| format!("{:.2} s", ms as f64 / 1000.0);
+        let end = self.duration();
+        if end == 0 {
+            return vec!["Timeline is empty".into()];
+        }
+        let video: Vec<_> = self
+            .tracks
+            .iter()
+            .filter(|t| t.kind == TrackKind::Video && !t.clips.is_empty())
+            .collect();
+        let mut out = vec![];
+        if video.len() > 1 {
+            out.push("Only one populated video track can be exported".into());
+        }
+        let Some(track) = video.first() else {
+            out.push(format!(
+                "No video clips: export is {} of black frames",
+                secs(end)
+            ));
+            return out;
+        };
+        let mut cursor = 0;
+        for c in &track.clips {
+            if c.position_ms > cursor {
+                out.push(format!(
+                    "Video gap {}–{} exports as black frames",
+                    secs(cursor),
+                    secs(c.position_ms)
+                ));
+            }
+            cursor = c.position_ms + c.duration();
+        }
+        if end > cursor {
+            out.push(format!(
+                "Audio runs {} past the last video clip ({}–{}): black frames; trim/fade the audio or add video",
+                secs(end - cursor),
+                secs(cursor),
+                secs(end)
+            ));
+        }
+        out
+    }
     pub fn validate(&self) -> Result<()> {
         if self.version != 3 {
             return Err(format!("Unsupported project version {}", self.version));

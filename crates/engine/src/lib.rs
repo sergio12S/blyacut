@@ -1,4 +1,5 @@
 //! External processes always receive argument vectors, never shell strings.
+pub mod studio;
 use blyacut_core::{id, Asset, Project, Result, TrackKind};
 use std::{
     path::{Path, PathBuf},
@@ -96,7 +97,18 @@ pub fn probe(path: &Path) -> Result<Asset> {
         has_audio: streams.iter().any(|s| s["codec_type"] == "audio"),
     })
 }
-fn sec(ms: u64) -> String {
+/// Letterbox any source into the project frame, rate and pixel format.
+pub(crate) fn normalize_filter(project: &Project) -> String {
+    let s = &project.settings;
+    format!(
+        "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={}/{},format=yuv420p",
+        s.fps_num,
+        s.fps_den,
+        w = s.width,
+        h = s.height
+    )
+}
+pub(crate) fn sec(ms: u64) -> String {
     format!("{}.{:03}", ms / 1000, ms % 1000)
 }
 pub fn segment_args(
@@ -106,7 +118,6 @@ pub fn segment_args(
     duration: u64,
     out: &Path,
 ) -> Vec<String> {
-    let s = &project.settings;
     let mut a = vec![
         "-nostdin".into(),
         "-v".into(),
@@ -127,7 +138,35 @@ pub fn segment_args(
             "anullsrc=r=48000:cl=stereo".into(),
         ]);
     }
-    a.extend(["-t".into(),sec(duration),"-map".into(),"0:v:0".into(),"-map".into(),if asset.has_audio{"0:a:0"}else{"1:a:0"}.into(),"-vf".into(),format!("scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={}/{},format=yuv420p",s.width,s.height,s.width,s.height,s.fps_num,s.fps_den),"-af".into(),"aresample=48000,apad".into(),"-c:v".into(),"libx264".into(),"-preset".into(),"veryfast".into(),"-crf".into(),"20".into(),"-c:a".into(),"aac".into(),"-ar".into(),"48000".into(),"-ac".into(),"2".into(),"-video_track_timescale".into(),"90000".into(),"-progress".into(),"pipe:1".into(),out.to_string_lossy().into()]);
+    a.extend([
+        "-t".into(),
+        sec(duration),
+        "-map".into(),
+        "0:v:0".into(),
+        "-map".into(),
+        if asset.has_audio { "0:a:0" } else { "1:a:0" }.into(),
+        "-vf".into(),
+        normalize_filter(project),
+        "-af".into(),
+        "aresample=48000,apad".into(),
+        "-c:v".into(),
+        "libx264".into(),
+        "-preset".into(),
+        "veryfast".into(),
+        "-crf".into(),
+        "20".into(),
+        "-c:a".into(),
+        "aac".into(),
+        "-ar".into(),
+        "48000".into(),
+        "-ac".into(),
+        "2".into(),
+        "-video_track_timescale".into(),
+        "90000".into(),
+        "-progress".into(),
+        "pipe:1".into(),
+        out.to_string_lossy().into(),
+    ]);
     a
 }
 struct Scratch(PathBuf);

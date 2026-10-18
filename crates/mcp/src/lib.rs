@@ -2,15 +2,29 @@
 mod schema;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-#[derive(Default)]
+pub const DESKTOP_INSTRUCTIONS: &str = "Controls the running local BlyaCut session. Read get_project before editing. Only authorized-folder media imports/new exports are allowed. Changes immediately update the desktop timeline.";
+pub const HEADLESS_INSTRUCTIONS: &str = "Headless BlyaCut studio: you are the editor. Workflow: import_media (or create_title_card) -> get_project for IDs/revision -> apply_edits (append, trim_clip, set_effects with list_effect_recipes builtin presets, set_audio) -> read `warnings` -> preview_frame and look at the PNGs -> export_video -> poll get_session until status is complete, then check loudness/warnings -> save_project. Only paths inside the authorized folder are allowed.";
 pub struct Protocol {
     initialized: bool,
     ready: bool,
+    instructions: &'static str,
+}
+impl Default for Protocol {
+    fn default() -> Self {
+        Self::with_instructions(DESKTOP_INSTRUCTIONS)
+    }
 }
 fn error(id: Value, code: i32, message: &str) -> Value {
     json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}})
 }
 impl Protocol {
+    pub fn with_instructions(instructions: &'static str) -> Self {
+        Self {
+            initialized: false,
+            ready: false,
+            instructions,
+        }
+    }
     pub fn handle(
         &mut self,
         request: Value,
@@ -57,7 +71,7 @@ impl Protocol {
                     ));
                 }
                 self.initialized = true;
-                json!({"protocolVersion":if ["2025-11-25","2025-06-18"].contains(&version){version}else{"2025-11-25"},"capabilities":{"tools":{}},"serverInfo":{"name":"blyacut","version":env!("CARGO_PKG_VERSION")},"instructions":"Controls the running local BlyaCut session. Read get_project before editing. Only authorized-folder media imports/new exports are allowed. Changes immediately update the desktop timeline."})
+                json!({"protocolVersion":if ["2025-11-25","2025-06-18"].contains(&version){version}else{"2025-11-25"},"capabilities":{"tools":{}},"serverInfo":{"name":"blyacut","version":env!("CARGO_PKG_VERSION")},"instructions":self.instructions})
             }
             "ping" => json!({}),
             _ if !self.ready => {
@@ -97,6 +111,26 @@ impl Protocol {
     }
 }
 pub fn run(config_path: PathBuf) -> Result<(), String> {
+    serve(Protocol::default(), |name, args| {
+        editor_call(&config_path, name, args)
+    })
+}
+/// Run an in-process editing session with no desktop app: the agent is the editor.
+pub fn run_headless(root: PathBuf, autonomous: bool) -> Result<(), String> {
+    let session = std::sync::Arc::new(blyacut_session::Session::default());
+    let gateway =
+        blyacut_session::gateway::Gateway::new(session.clone(), &root)?.autonomous(autonomous);
+    let result = serve(
+        Protocol::with_instructions(HEADLESS_INSTRUCTIONS),
+        |name, args| gateway.call(name, args),
+    );
+    session.wait_for_export();
+    result
+}
+fn serve(
+    mut protocol: Protocol,
+    mut call: impl FnMut(&str, Value) -> Result<Value, String>,
+) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::io::{BufReader, Write};
@@ -104,7 +138,6 @@ pub fn run(config_path: PathBuf) -> Result<(), String> {
         let mut input = BufReader::new(stdin.lock());
         let stdout = std::io::stdout();
         let mut output = stdout.lock();
-        let mut protocol = Protocol::default();
         loop {
             let request = match blyacut_session::ipc::read_json(
                 &mut input,
@@ -119,9 +152,7 @@ pub fn run(config_path: PathBuf) -> Result<(), String> {
                     break;
                 }
             };
-            if let Some(response) =
-                protocol.handle(request, |name, args| editor_call(&config_path, name, args))
-            {
+            if let Some(response) = protocol.handle(request, &mut call) {
                 writeln!(output, "{response}").map_err(|e| e.to_string())?;
                 output.flush().map_err(|e| e.to_string())?;
             }
@@ -130,7 +161,7 @@ pub fn run(config_path: PathBuf) -> Result<(), String> {
     }
     #[cfg(not(unix))]
     {
-        let _ = config_path;
+        let _ = (&mut protocol, &mut call);
         Err("Local MCP bridge currently supports macOS/Linux only".into())
     }
 }

@@ -28,7 +28,7 @@ fn lifecycle_schema_and_errors() {
         .is_none());
     let tools = request(&mut p, "tools/list", json!({}));
     let tools = tools["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 16);
     for tool in tools {
         assert_eq!(tool["inputSchema"]["additionalProperties"], false);
     }

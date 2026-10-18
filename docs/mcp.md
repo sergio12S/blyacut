@@ -31,6 +31,29 @@ BlyaCut 0.2 exposes a working **stdio MCP bridge into the running desktop sessio
 4. Ask the agent to inspect the project, import media, apply a batch and export. Changes immediately appear in the desktop timeline.
 5. **Stop agent access** revokes that endpoint and deletes its config/socket. A render already started continues until complete or cancelled separately.
 
+## Headless autonomous studio
+
+Agents can make videos with no desktop app and no human in the loop:
+
+```sh
+cargo build -p blyacut-mcp
+target/debug/blyacut-mcp --headless /path/to/folder --autonomous
+```
+
+The process owns an in-process session limited to that folder. `--autonomous` lets `apply_edits` include `delete_clip` and up to 100 edits; `propose_edits` is then refused because nobody reviews. Without the flag the review rules below apply (and nothing can approve proposals headlessly). On stdin EOF the bridge waits for a running export to finish.
+
+Recommended loop: `import_media` / `create_title_card` → `get_project` → `apply_edits` → read `warnings` (black gaps, audio running past video) → `preview_frame` and inspect the PNGs → `export_video` → poll `get_session` until `render_job.status` is `complete`, then read `render_job.loudness` (mean/peak dBFS) and `render_job.warnings` (e.g. limiter clipping) → `save_project`.
+
+Agents without their own MCP client can run one persistent session from a Python script that has `call(tool, args)` in scope:
+
+```sh
+uv run --with 'mcp<2' python scripts/mcp-script.py --headless /path/to/folder --autonomous plan.py
+```
+
+In the desktop app, tick **Autonomous agent** before **Enable agent access…** to give a connected agent the same authority; Undo still works.
+
+Title cards use a system TrueType font (Arial on macOS, DejaVu/Noto on Linux; override with `BLYACUT_FONT`), because FFmpeg builds without libfreetype have no text filters.
+
 ## Available tools
 
 | Tool | Behavior |
@@ -44,6 +67,9 @@ BlyaCut 0.2 exposes a working **stdio MCP bridge into the running desktop sessio
 | `undo`, `redo` | Shared history, guarded by expected revision |
 | `export_video` | Start an asynchronous snapshot export to a new MP4 filename |
 | `cancel_export` | Request cancellation of the current export |
+| `preview_frame` | Render one timeline instant (effects included) to a new PNG in the folder |
+| `create_title_card` | Rasterize Latin/Cyrillic text into a new MP4 title clip and import it |
+| `save_project` / `open_project` | Persist or load a `.blyacut` inside the folder (its media must be inside too) |
 | `list_effect_recipes` | Reload validated recipes from `effects/` in the authorized folder |
 | `create_effect_recipe` | Validate and create a new recipe file without overwriting |
 
@@ -96,4 +122,4 @@ This scripted client uses the official Python MCP SDK, not a built-in LLM: it in
 
 The live desktop path was tested with official SDK **1.30.0** and its 2025-11-25 protocol lifecycle. The bridge also negotiates 2025-06-18. It does not implement the newer 2026 protocol revision or claim compatibility with every MCP host. Sources: [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle), [official Python SDK](https://github.com/modelcontextprotocol/python-sdk).
 
-See [effect recipes](effects.md) for schemas, parameter bounds, hot reloading and preview/export limits. There are currently 12 discoverable tools.
+See [effect recipes](effects.md) for schemas, parameter bounds, hot reloading and preview/export limits. There are currently 16 discoverable tools.

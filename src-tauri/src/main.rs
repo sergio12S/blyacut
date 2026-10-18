@@ -119,12 +119,17 @@ fn resolve_proposal(s: State<Desktop>, proposal_id: String, accept: bool) -> Res
 }
 #[cfg(unix)]
 #[tauri::command]
-fn start_agent(s: State<Desktop>, root: PathBuf) -> Result<ConnectionInfo> {
+fn start_agent(
+    s: State<Desktop>,
+    root: PathBuf,
+    autonomous: Option<bool>,
+) -> Result<ConnectionInfo> {
     let mut slot = s.agent.lock().map_err(|e| e.to_string())?;
     if slot.is_some() {
         return Err("Stop the current agent session first".into());
     }
-    let server = Server::start(Gateway::new(s.session.clone(), &root)?)?;
+    let gateway = Gateway::new(s.session.clone(), &root)?.autonomous(autonomous.unwrap_or(false));
+    let server = Server::start(gateway)?;
     let info = server.info.clone();
     *slot = Some(server);
     Ok(info)

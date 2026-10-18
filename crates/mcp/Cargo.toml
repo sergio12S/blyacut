@@ -6,5 +6,7 @@ license.workspace = true
 [dependencies]
 blyacut-session = { path = "../session" }
 serde_json.workspace = true
-
 blyacut-core = { path = "../core" }
+
+[dev-dependencies]
+blyacut-engine = { path = "../engine" }

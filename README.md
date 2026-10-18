@@ -40,7 +40,9 @@ A release executable can be built with `npm run tauri build`. Bundling is disabl
 
 ## Agent editing
 
-In the **Agent** sidebar tab, **Enable agent access…** authorizes one media/export folder and creates a private session config. Build `cargo build -p blyacut-mcp` and connect an external MCP host to that executable with the displayed config path. Agent edits immediately appear in the desktop, share Undo/Redo, and use revision-checked transactions. Removals/large batches have a preview-and-apply flow. See [MCP setup and reproducible demo](docs/mcp.md).
+In the **Agent** sidebar tab, **Enable agent access…** authorizes one media/export folder and creates a private session config. Build `cargo build -p blyacut-mcp` and connect an external MCP host to that executable with the displayed config path. Agent edits immediately appear in the desktop, share Undo/Redo, and use revision-checked transactions. Removals/large batches have a preview-and-apply flow unless you tick **Autonomous agent**.
+
+Agents can also work with no app open: `blyacut-mcp --headless FOLDER --autonomous` is a complete local studio (import, title cards, edits, effects, frame previews, export with loudness report, save/open). See [MCP setup, headless studio and reproducible demo](docs/mcp.md).
 
 No natural-language model is embedded yet. Transcription, subtitles, automatic ducking, pause detection and generative video/music remain future work.
 

@@ -122,6 +122,8 @@ export interface Proposal {
 export interface AgentConnection {
   config_path: string;
   allowed_root: string;
+  /** "autonomous": the agent applies removals and large batches without review. */
+  mode: "review" | "autonomous";
 }
 export type Edit =
   | { operation: "set_effects"; clip_id: string; effects: EffectRecipe[] }

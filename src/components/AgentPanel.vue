@@ -13,9 +13,10 @@ import {
 } from "../types";
 const e = useEditor();
 const connection = ref<AgentConnection | null>(null);
+const autonomous = ref(false);
 const proposal = ref<Proposal | null>(null);
 const emit = defineEmits<{ pending: [count: number] }>();
-watch(proposal, p => emit('pending', p?.edits.length ?? 0));
+watch(proposal, (p) => emit("pending", p?.edits.length ?? 0));
 let unlisten: UnlistenFn | undefined;
 onMounted(async () => {
   if (!isTauri()) return;
@@ -39,7 +40,10 @@ async function enable() {
       title: "Choose the folder agents may import from and export into",
     });
     if (typeof root === "string")
-      connection.value = await invoke("start_agent", { root });
+      connection.value = await invoke("start_agent", {
+        root,
+        autonomous: autonomous.value,
+      });
   });
 }
 async function disable() {
@@ -69,8 +73,16 @@ async function resolve(accept: boolean) {
       Choose a folder to allow media imports and new exports. External agents
       can edit this timeline through the MCP bridge.
     </p>
+    <label v-if="!connection" class="autonomy-toggle"
+      ><input v-model="autonomous" type="checkbox" /> Autonomous agent: allow
+      deletions and large batches without my review</label
+    >
+    <p v-else-if="connection.mode === 'autonomous'" class="autonomy-on">
+      Autonomous: the agent edits without review. Undo still works.
+    </p>
     <details v-else :open="!proposal" class="connection-details">
-      <summary>Connection details</summary><p>
+      <summary>Connection details</summary>
+      <p>
         Authorized folder:
         <strong class="path-label">{{ connection.allowed_root }}</strong>
       </p>
@@ -82,9 +94,11 @@ async function resolve(accept: boolean) {
           @focus="($event.target as HTMLInputElement).select()"
       /></label>
       <p class="muted">
-        Pass this path to blyacut-mcp. Stop access when finished.
-      </p></details
-    ><button
+        Pass this path to blyacut-mcp. Stop access when finished. To work
+        without this app, run blyacut-mcp --headless FOLDER --autonomous.
+      </p>
+    </details>
+    <button
       class="full"
       :disabled="e.busy"
       @click="connection ? disable() : enable()"
@@ -116,7 +130,8 @@ async function resolve(accept: boolean) {
           {{ describeEdit(edit, e.project) }}
         </li>
       </ol>
-      <details><summary>Technical details</summary>
+      <details>
+        <summary>Technical details</summary>
         <pre>{{ JSON.stringify(proposal.edits, null, 2) }}</pre>
       </details>
       <button class="primary full" @click="resolve(true)">
@@ -128,3 +143,27 @@ async function resolve(accept: boolean) {
     </p>
   </div>
 </template>
+<style scoped>
+.autonomy-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.autonomy-toggle input {
+  margin-top: 2px;
+  accent-color: #c1f17b;
+}
+.autonomy-on {
+  margin: 8px 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid #5c4b1c;
+  background: #2c2614;
+  color: #f4c46b;
+  font-size: 12px;
+}
+</style>

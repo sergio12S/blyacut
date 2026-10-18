@@ -24,6 +24,20 @@ pub struct RenderJob {
     pub progress: f64,
     pub status: String,
     pub error: Option<String>,
+    /// Output path, so agents can find the file they asked for.
+    #[serde(default)]
+    pub output: Option<std::path::PathBuf>,
+    /// Measured after a successful export.
+    #[serde(default)]
+    pub loudness: Option<blyacut_engine::studio::Loudness>,
+    /// Timeline notes at start plus level problems found after export.
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+fn stale(expected: u64, current: u64) -> String {
+    format!(
+        "Stale revision: expected {expected}, current {current}; re-read get_project and re-plan"
+    )
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Proposal {
@@ -124,8 +138,8 @@ impl Session {
     pub fn history(&self, redo: bool, expected_revision: Option<u64>) -> Result<Snapshot> {
         let snapshot = {
             let mut e = self.editor()?;
-            if expected_revision.is_some_and(|r| r != e.revision) {
-                return Err("Stale revision".into());
+            if let Some(r) = expected_revision.filter(|r| *r != e.revision) {
+                return Err(stale(r, e.revision));
             }
             if redo {
                 e.redo()
@@ -140,7 +154,7 @@ impl Session {
         let proposal = {
             let e = self.editor()?;
             if e.revision != revision {
-                return Err("Stale revision".into());
+                return Err(stale(revision, e.revision));
             }
             let preview = e.preview(&edits)?;
             let proposal = Proposal {
@@ -186,8 +200,8 @@ impl Session {
     }
     pub fn export(self: &Arc<Self>, output: &Path, revision: Option<u64>) -> Result<RenderJob> {
         let snapshot = self.snapshot()?;
-        if revision.is_some_and(|r| r != snapshot.revision) {
-            return Err("Stale revision".into());
+        if let Some(r) = revision.filter(|r| *r != snapshot.revision) {
+            return Err(stale(r, snapshot.revision));
         }
         snapshot.project.validate()?;
         let cancel = Arc::new(AtomicBool::new(false));
@@ -197,6 +211,9 @@ impl Session {
             progress: 0.0,
             status: "rendering".into(),
             error: None,
+            output: Some(output.to_path_buf()),
+            loudness: None,
+            warnings: snapshot.project.warnings(),
         };
         {
             let mut slot = self.job.lock().map_err(|e| e.to_string())?;
@@ -212,10 +229,46 @@ impl Session {
             let result = blyacut_engine::render(&snapshot.project, &path, cancel, |progress| {
                 session.update_job(progress, "rendering", None)
             });
+            if result.is_ok() {
+                session.measure(&path);
+            }
             let status = if result.is_ok() { "complete" } else { "failed" };
             session.update_job(if result.is_ok() { 1.0 } else { 0.0 }, status, result.err());
         });
         Ok(job)
+    }
+    fn measure(&self, path: &Path) {
+        let Ok(level) = blyacut_engine::studio::loudness(path) else {
+            return;
+        };
+        if let Ok(mut slot) = self.job.lock() {
+            if let Some((job, _)) = slot.as_mut() {
+                if level.peak_db > -0.5 {
+                    job.warnings.push(format!(
+                        "Audio peaks at {:.1} dBFS and hits the limiter; lower gain_milli on loud clips",
+                        level.peak_db
+                    ));
+                }
+                if level.mean_db < -35.0 {
+                    job.warnings.push(format!(
+                        "Audio is very quiet (mean {:.1} dBFS); raise gain or add normalize",
+                        level.mean_db
+                    ));
+                }
+                job.loudness = Some(level);
+            }
+        }
+    }
+    /// Blocks until no export is rendering (headless shutdown waits for the file).
+    pub fn wait_for_export(&self) {
+        while self
+            .render_job()
+            .ok()
+            .flatten()
+            .is_some_and(|j| j.status == "rendering")
+        {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
     }
     fn update_job(&self, progress: f64, status: &str, error: Option<String>) {
         let job = if let Ok(mut slot) = self.job.lock() {

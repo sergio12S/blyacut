@@ -34,6 +34,7 @@ struct Request {
 pub struct ConnectionInfo {
     pub config_path: PathBuf,
     pub allowed_root: PathBuf,
+    pub mode: &'static str,
 }
 pub struct Server {
     pub info: ConnectionInfo,
@@ -71,6 +72,7 @@ impl Server {
             let info = ConnectionInfo {
                 config_path,
                 allowed_root: gateway.info().allowed_root,
+                mode: gateway.info().mode,
             };
             let stop = Arc::new(AtomicBool::new(false));
             let flag = stop.clone();

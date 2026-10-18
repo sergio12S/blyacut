@@ -289,3 +289,41 @@ fn v1_project_migrates_without_changing_clip_ranges() {
     assert_eq!(p.tracks[0].clips[0].gain_milli, 1000);
     assert_eq!(p.tracks[0].clips[0].fade_in_ms, 0);
 }
+
+#[test]
+fn warnings_explain_black_tails_and_gaps() {
+    let mut e = Editor::default();
+    assert_eq!(e.project.warnings(), vec!["Timeline is empty".to_string()]);
+    for (id, ms, w) in [("v", 2000, 320), ("a", 5000, 0)] {
+        e.import(Asset {
+            id: id.into(),
+            name: id.into(),
+            path: format!("/tmp/{id}").into(),
+            duration_ms: ms,
+            width: w,
+            height: if w > 0 { 180 } else { 0 },
+            has_audio: true,
+        })
+        .unwrap();
+    }
+    let (vt, at) = (
+        e.project.tracks[0].id.clone(),
+        e.project.tracks[1].id.clone(),
+    );
+    e.execute(Edit::Append {
+        asset_id: "a".into(),
+        clip_id: "music".into(),
+        track_id: at,
+    })
+    .unwrap();
+    assert!(e.project.warnings()[0].starts_with("No video clips"));
+    e.execute(Edit::Append {
+        asset_id: "v".into(),
+        clip_id: "shot".into(),
+        track_id: vt,
+    })
+    .unwrap();
+    let w = e.project.warnings();
+    assert_eq!(w.len(), 1);
+    assert!(w[0].contains("Audio runs 3.00 s past"), "{w:?}");
+}

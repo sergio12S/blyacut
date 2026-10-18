@@ -6,6 +6,8 @@ Generated from Cargo.lock and installed npm packages. Review before distribution
 
 | Package | Version | Declared license |
 |---|---|---|
+| ab_glyph | 0.2.32 | Apache-2.0 |
+| ab_glyph_rasterizer | 0.1.10 | Apache-2.0 |
 | adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
 | aho-corasick | 1.1.5 | Unlicense OR MIT |
 | alloc-no-stdlib | 3.0.0 | BSD-3-Clause |
@@ -219,6 +221,7 @@ Generated from Cargo.lock and installed npm packages. Review before distribution
 | objc2-web-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT |
 | once_cell | 1.21.4 | MIT OR Apache-2.0 |
 | option-ext | 0.2.0 | MPL-2.0 |
+| owned_ttf_parser | 0.25.1 | Apache-2.0 |
 | pango | 0.18.3 | MIT |
 | pango-sys | 0.18.0 | MIT |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 |
@@ -349,6 +352,7 @@ Generated from Cargo.lock and installed npm packages. Review before distribution
 | tracing-core | 0.1.36 | MIT |
 | tray-icon | 0.25.1 | MIT OR Apache-2.0 |
 | try-lock | 0.2.5 | MIT |
+| ttf-parser | 0.25.1 | MIT OR Apache-2.0 |
 | typeid | 1.0.3 | MIT OR Apache-2.0 |
 | typenum | 1.20.1 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |

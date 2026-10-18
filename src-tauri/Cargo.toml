@@ -1,0 +1,16 @@
+[package]
+name = "blyacut"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde.workspace = true
+serde_json.workspace = true
+blyacut-core = { path = "../crates/core" }
+blyacut-engine = { path = "../crates/engine" }
+
+blyacut-session = { path = "../crates/session" }

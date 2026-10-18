@@ -1,0 +1,12 @@
+node_modules/
+target/
+dist/
+.DS_Store
+*.mp4
+*.mov
+*.blyacut
+!examples/*.blyacut
+src-tauri/gen/
+
+*.wav
+__pycache__/

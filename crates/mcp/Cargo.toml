@@ -1,0 +1,10 @@
+[package]
+name = "blyacut-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+blyacut-session = { path = "../session" }
+serde_json.workspace = true
+
+blyacut-core = { path = "../core" }

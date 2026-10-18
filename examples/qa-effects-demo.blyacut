@@ -1,0 +1,125 @@
+{
+  "version": 3,
+  "id": "c4ed5be6-1da5-459d-b049-7b37117b80d1",
+  "name": "Untitled project",
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1
+  },
+  "assets": [
+    {
+      "id": "5c6b40d7-ef83-4d14-ae8f-129692dd10d1",
+      "name": "synthetic.mp4",
+      "path": "synthetic.mp4",
+      "duration_ms": 6000,
+      "width": 640,
+      "height": 360,
+      "has_audio": true
+    },
+    {
+      "id": "93a96851-29c1-4bbb-ab86-eaf542162686",
+      "name": "blue.mp4",
+      "path": "blue.mp4",
+      "duration_ms": 6000,
+      "width": 640,
+      "height": 360,
+      "has_audio": true
+    },
+    {
+      "id": "b898dac5-3dac-458f-ae62-f2b9ea570c77",
+      "name": "soundtrack.wav",
+      "path": "soundtrack.wav",
+      "duration_ms": 6000,
+      "width": 0,
+      "height": 0,
+      "has_audio": true
+    }
+  ],
+  "tracks": [
+    {
+      "id": "27ad5363-88fb-4005-87ea-51415d61c57c",
+      "name": "Video 1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "4a0dccf9-0984-4cf2-a542-aee6d493b8a3",
+          "asset_id": "5c6b40d7-ef83-4d14-ae8f-129692dd10d1",
+          "position_ms": 0,
+          "source_start_ms": 0,
+          "source_end_ms": 2000,
+          "gain_milli": 200,
+          "fade_in_ms": 0,
+          "fade_out_ms": 0,
+          "effects": [
+            {
+              "version": 1,
+              "id": "qa-mono-41a7784c",
+              "name": "QA monochrome",
+              "steps": [
+                {
+                  "effect": "saturation",
+                  "gain_milli": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "af78b027-bdb2-43e4-bc5b-fc4e35378e04",
+          "asset_id": "93a96851-29c1-4bbb-ab86-eaf542162686",
+          "position_ms": 2000,
+          "source_start_ms": 4000,
+          "source_end_ms": 6000,
+          "gain_milli": 200,
+          "fade_in_ms": 0,
+          "fade_out_ms": 0,
+          "effects": [
+            {
+              "version": 1,
+              "id": "qa-mono-41a7784c",
+              "name": "QA monochrome",
+              "steps": [
+                {
+                  "effect": "saturation",
+                  "gain_milli": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2bd169f7-e81c-4389-bf90-bbda1593495a",
+      "name": "Audio 1",
+      "kind": "audio",
+      "clips": [
+        {
+          "id": "947ccda1-fee9-4ad9-abe1-7fbd03b3736b",
+          "asset_id": "b898dac5-3dac-458f-ae62-f2b9ea570c77",
+          "position_ms": 0,
+          "source_start_ms": 0,
+          "source_end_ms": 4000,
+          "gain_milli": 300,
+          "fade_in_ms": 500,
+          "fade_out_ms": 500,
+          "effects": [
+            {
+              "version": 1,
+              "id": "qa-phone",
+              "name": "QA telephone",
+              "steps": [
+                {
+                  "effect": "low_pass",
+                  "frequency_hz": 1200
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

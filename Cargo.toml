@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/core", "crates/engine", "crates/session", "crates/mcp", "src-tauri"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }

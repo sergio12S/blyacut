@@ -1,0 +1,243 @@
+//! One live editing session shared by the desktop and external adapters.
+pub mod effects;
+pub mod gateway;
+#[cfg(unix)]
+pub mod ipc;
+use blyacut_core::{id, Asset, Edit, Editor, Project, Result};
+use serde::{Deserialize, Serialize};
+use std::{
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+};
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Snapshot {
+    pub project: Project,
+    pub revision: u64,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RenderJob {
+    pub id: String,
+    pub revision: u64,
+    pub progress: f64,
+    pub status: String,
+    pub error: Option<String>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Proposal {
+    pub id: String,
+    pub revision: u64,
+    pub edits: Vec<Edit>,
+    pub preview: Project,
+}
+#[derive(Clone, Debug)]
+pub enum Event {
+    Project(Snapshot),
+    Render(RenderJob),
+    Proposal(Option<Proposal>),
+}
+pub struct Session {
+    editor: Mutex<Editor>,
+    pending: Mutex<Option<Proposal>>,
+    job: Mutex<Option<(RenderJob, Arc<AtomicBool>)>>,
+    emit: Box<dyn Fn(Event) + Send + Sync>,
+}
+impl Default for Session {
+    fn default() -> Self {
+        Self::new(|_| {})
+    }
+}
+impl Session {
+    pub fn new(emit: impl Fn(Event) + Send + Sync + 'static) -> Self {
+        Self {
+            editor: Mutex::new(Editor::default()),
+            pending: Mutex::new(None),
+            job: Mutex::new(None),
+            emit: Box::new(emit),
+        }
+    }
+    fn editor(&self) -> Result<std::sync::MutexGuard<'_, Editor>> {
+        self.editor
+            .lock()
+            .map_err(|_| "Editor lock poisoned".into())
+    }
+    fn snapshot_of(e: &Editor) -> Snapshot {
+        Snapshot {
+            project: e.project.clone(),
+            revision: e.revision,
+        }
+    }
+    pub fn snapshot(&self) -> Result<Snapshot> {
+        let editor = self.editor()?;
+        Ok(Self::snapshot_of(&editor))
+    }
+    fn changed(&self, snapshot: Snapshot) -> Snapshot {
+        if let Ok(mut pending) = self.pending.lock() {
+            if pending
+                .as_ref()
+                .is_some_and(|p| p.revision < snapshot.revision)
+            {
+                *pending = None;
+                (self.emit)(Event::Proposal(None));
+            }
+        }
+        (self.emit)(Event::Project(snapshot.clone()));
+        snapshot
+    }
+    pub fn edit(&self, edit: Edit) -> Result<Snapshot> {
+        let rev = self.snapshot()?.revision;
+        self.apply(&[edit], rev)
+    }
+    pub fn apply(&self, edits: &[Edit], expected_revision: u64) -> Result<Snapshot> {
+        let snapshot = {
+            let mut e = self.editor()?;
+            e.batch(edits, expected_revision)?;
+            Self::snapshot_of(&e)
+        };
+        Ok(self.changed(snapshot))
+    }
+    pub fn import(&self, asset: Asset) -> Result<Snapshot> {
+        let revision = self.snapshot()?.revision;
+        self.import_at(asset, revision)
+    }
+    pub fn import_at(&self, asset: Asset, revision: u64) -> Result<Snapshot> {
+        let snapshot = {
+            let mut e = self.editor()?;
+            if e.revision != revision {
+                return Err("Project changed during import; retry".into());
+            }
+            e.import(asset)?;
+            Self::snapshot_of(&e)
+        };
+        Ok(self.changed(snapshot))
+    }
+    pub fn replace(&self, project: Project) -> Result<Snapshot> {
+        let snapshot = {
+            let mut e = self.editor()?;
+            e.replace(project)?;
+            Self::snapshot_of(&e)
+        };
+        Ok(self.changed(snapshot))
+    }
+    pub fn history(&self, redo: bool, expected_revision: Option<u64>) -> Result<Snapshot> {
+        let snapshot = {
+            let mut e = self.editor()?;
+            if expected_revision.is_some_and(|r| r != e.revision) {
+                return Err("Stale revision".into());
+            }
+            if redo {
+                e.redo()
+            } else {
+                e.undo()
+            };
+            Self::snapshot_of(&e)
+        };
+        Ok(self.changed(snapshot))
+    }
+    pub fn propose(&self, edits: Vec<Edit>, revision: u64) -> Result<Proposal> {
+        let proposal = {
+            let e = self.editor()?;
+            if e.revision != revision {
+                return Err("Stale revision".into());
+            }
+            let preview = e.preview(&edits)?;
+            let proposal = Proposal {
+                id: id(),
+                revision,
+                edits,
+                preview,
+            };
+            *self.pending.lock().map_err(|e| e.to_string())? = Some(proposal.clone());
+            proposal
+        };
+        (self.emit)(Event::Proposal(Some(proposal.clone())));
+        Ok(proposal)
+    }
+    pub fn pending(&self) -> Result<Option<Proposal>> {
+        Ok(self.pending.lock().map_err(|e| e.to_string())?.clone())
+    }
+    /// Only the desktop exposes this method. Agents cannot approve their own proposal.
+    pub fn resolve_proposal(&self, proposal_id: &str, accept: bool) -> Result<Snapshot> {
+        let snapshot = {
+            let mut e = self.editor()?;
+            let mut pending = self.pending.lock().map_err(|e| e.to_string())?;
+            let p = pending.as_ref().ok_or("No pending proposal")?;
+            if p.id != proposal_id {
+                return Err("Proposal ID mismatch".into());
+            }
+            if accept {
+                e.batch(&p.edits, p.revision)?;
+            }
+            *pending = None;
+            Self::snapshot_of(&e)
+        };
+        (self.emit)(Event::Proposal(None));
+        Ok(self.changed(snapshot))
+    }
+    pub fn render_job(&self) -> Result<Option<RenderJob>> {
+        Ok(self
+            .job
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+            .map(|(j, _)| j.clone()))
+    }
+    pub fn export(self: &Arc<Self>, output: &Path, revision: Option<u64>) -> Result<RenderJob> {
+        let snapshot = self.snapshot()?;
+        if revision.is_some_and(|r| r != snapshot.revision) {
+            return Err("Stale revision".into());
+        }
+        snapshot.project.validate()?;
+        let cancel = Arc::new(AtomicBool::new(false));
+        let job = RenderJob {
+            id: id(),
+            revision: snapshot.revision,
+            progress: 0.0,
+            status: "rendering".into(),
+            error: None,
+        };
+        {
+            let mut slot = self.job.lock().map_err(|e| e.to_string())?;
+            if slot.as_ref().is_some_and(|(j, _)| j.status == "rendering") {
+                return Err("An export is already running".into());
+            }
+            *slot = Some((job.clone(), cancel.clone()));
+        }
+        (self.emit)(Event::Render(job.clone()));
+        let session = self.clone();
+        let path = output.to_path_buf();
+        std::thread::spawn(move || {
+            let result = blyacut_engine::render(&snapshot.project, &path, cancel, |progress| {
+                session.update_job(progress, "rendering", None)
+            });
+            let status = if result.is_ok() { "complete" } else { "failed" };
+            session.update_job(if result.is_ok() { 1.0 } else { 0.0 }, status, result.err());
+        });
+        Ok(job)
+    }
+    fn update_job(&self, progress: f64, status: &str, error: Option<String>) {
+        let job = if let Ok(mut slot) = self.job.lock() {
+            if let Some((job, _)) = slot.as_mut() {
+                job.progress = progress;
+                job.status = status.into();
+                job.error = error;
+                Some(job.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(job) = job {
+            (self.emit)(Event::Render(job));
+        }
+    }
+    pub fn cancel(&self) -> Result<()> {
+        if let Some((_, flag)) = self.job.lock().map_err(|e| e.to_string())?.as_ref() {
+            flag.store(true, Ordering::Relaxed);
+        }
+        Ok(())
+    }
+}

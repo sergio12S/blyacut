@@ -1,0 +1,28 @@
+{
+  "name": "blyacut",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "tauri": "tauri",
+    "test": "cargo test -p blyacut-core -p blyacut-engine -p blyacut-session -p blyacut-mcp"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "pinia": "^3",
+    "vue": "^3.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4",
+    "typescript": "~5.9.3",
+    "vite": "^6",
+    "vue-tsc": "^3"
+  }
+}

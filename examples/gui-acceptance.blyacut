@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "id": "fd360e51-ff33-41e9-8f05-b5b865c9b808",
+  "name": "Untitled project",
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1
+  },
+  "assets": [
+    {
+      "id": "a5fbf145-3099-4a89-8eaf-63900070f868",
+      "name": "synthetic.mp4",
+      "path": "synthetic.mp4",
+      "duration_ms": 6000,
+      "width": 640,
+      "height": 360,
+      "has_audio": true
+    }
+  ],
+  "tracks": [
+    {
+      "id": "b6f5ac4d-5863-4fd8-a969-c5dbd0507e95",
+      "name": "Video 1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "e6952a09-7d00-423e-af1d-e034f8eed7f1",
+          "asset_id": "a5fbf145-3099-4a89-8eaf-63900070f868",
+          "position_ms": 0,
+          "source_start_ms": 0,
+          "source_end_ms": 2000
+        },
+        {
+          "id": "fa04b70c-a226-4850-969c-488005623b4d",
+          "asset_id": "a5fbf145-3099-4a89-8eaf-63900070f868",
+          "position_ms": 2000,
+          "source_start_ms": 4000,
+          "source_end_ms": 6000
+        }
+      ]
+    }
+  ]
+}

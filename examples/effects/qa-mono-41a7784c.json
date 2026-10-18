@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "qa-mono-41a7784c",
+  "name": "QA monochrome",
+  "steps": [
+    {
+      "effect": "saturation",
+      "gain_milli": 0
+    }
+  ]
+}

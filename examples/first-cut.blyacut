@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "example-project-v1",
+  "name": "First cut — middle removed",
+  "settings": { "width": 640, "height": 360, "fps_num": 30, "fps_den": 1 },
+  "assets": [{ "id": "example-media", "name": "synthetic.mp4", "path": "synthetic.mp4", "duration_ms": 6000, "width": 640, "height": 360, "has_audio": true }],
+  "tracks": [{ "id": "example-video-track", "name": "Video 1", "kind": "video", "clips": [
+    { "id": "example-left", "asset_id": "example-media", "position_ms": 0, "source_start_ms": 0, "source_end_ms": 2000 },
+    { "id": "example-right", "asset_id": "example-media", "position_ms": 2000, "source_start_ms": 4000, "source_end_ms": 6000 }
+  ]}]
+}

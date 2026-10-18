@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "telephone-echo",
+  "name": "Telephone echo",
+  "steps": [
+    { "effect": "high_pass", "frequency_hz": 300 },
+    { "effect": "low_pass", "frequency_hz": 3400 },
+    { "effect": "echo", "delay_ms": 180, "decay_milli": 250 }
+  ]
+}

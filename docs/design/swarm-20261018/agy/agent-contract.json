@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BlyaCut Agent Experience & Creative Workflows Contract",
+  "version": "1.1.0",
+  "last_updated": "2026-10-18",
+  "role": "agent-ux-architect",
+  "description": "Authoritative contract for external AI editing agents operating on the BlyaCut Rust state core via MCP. Explicitly annotates every capability, permission, job feature, effect, and recovery mechanism with a 'status' field: 'implemented' (current BlyaCut 0.2 MVP) vs 'proposed' (future swarm design proposal).",
+
+  "capabilities": {
+    "protocol_discovery": {
+      "mcp_tools_list": {
+        "status": "implemented",
+        "description": "Native stdio MCP tools/list tool discovery over 2025-11-25 and 2025-06-18 lifecycle."
+      },
+      "capabilities_list": {
+        "status": "proposed",
+        "description": "Dedicated introspection endpoint returning detailed feature flags, limits, and supported plugin tiers."
+      }
+    },
+    "feature_flags": {
+      "independent_audio_tracks": { "status": "implemented", "description": "Up to 64 independent audio clips across tracks." },
+      "audio_gain_and_fades": { "status": "implemented", "description": "Linear gain (0..2000milli) and clip boundary fades (fade_in_ms, fade_out_ms)." },
+      "proposal_diff_preview": { "status": "implemented", "description": "Sidebar shows pending proposal clip counts and duration for user acceptance." },
+      "rich_visual_timeline_diff": { "status": "proposed", "description": "Ghost clip overlays on timeline canvas rendering additions/deletions/fades." },
+      "recipe_v1_json": { "status": "implemented", "description": "Safe JSON-only effect recipes with 7 fixed parameter steps, copied into project schema v3." },
+      "yaml_and_raw_filtergraphs": { "status": "proposed", "description": "Arbitrary FFmpeg filtergraph strings or YAML manifests (not implemented; rejected by Rust validator)." },
+      "sandboxed_wasm_dsp_and_wgsl": { "status": "proposed", "description": "Wasmtime audio DSP and WebGPU WGSL fragment shaders." },
+      "whisper_transcription": { "status": "proposed", "description": "Local speech-to-text integration." },
+      "multi_layer_video_compositing": { "status": "proposed", "description": "Multiple simultaneous populated video tracks." }
+    },
+    "core_primitives": {
+      "inspect": [
+        {
+          "name": "get_project",
+          "status": "implemented",
+          "description": "Returns full immutable snapshot of current project and active integer revision.",
+          "read_only": true,
+          "deterministic": true
+        },
+        {
+          "name": "get_timeline",
+          "status": "implemented",
+          "description": "Returns tracks, duration_ms, and revision.",
+          "read_only": true,
+          "deterministic": true
+        },
+        {
+          "name": "get_session",
+          "status": "implemented",
+          "description": "Returns authorized media folder root, active background render job, and pending proposal.",
+          "read_only": true,
+          "deterministic": true
+        },
+        {
+          "name": "list_effect_recipes",
+          "status": "implemented",
+          "description": "Loads valid Recipe v1 JSON files from the 'effects' subdirectory inside authorized root.",
+          "read_only": true,
+          "deterministic": true
+        },
+        {
+          "name": "create_effect_recipe",
+          "status": "implemented",
+          "description": "Validates and saves a Recipe v1 JSON file into the authorized 'effects' folder.",
+          "read_only": false,
+          "deterministic": true
+        },
+        {
+          "name": "preview_frame_at",
+          "status": "proposed",
+          "description": "Requests rendered preview thumbnail or frame metadata at a given timeline millisecond.",
+          "read_only": true,
+          "deterministic": true
+        }
+      ],
+      "timeline_mutations": [
+        {
+          "operation": "add_track",
+          "status": "implemented",
+          "allowed_kinds": ["audio"],
+          "requires_id": true,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "track_id": { "type": "string" },
+              "kind": { "type": "string", "enum": ["audio"] },
+              "label": { "type": "string" }
+            },
+            "required": ["track_id", "kind"]
+          }
+        },
+        {
+          "operation": "append",
+          "status": "implemented",
+          "description": "Appends an imported asset to the end of a video or audio track.",
+          "requires_id": true,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "asset_id": { "type": "string" },
+              "track_id": { "type": "string" },
+              "clip_id": { "type": "string" }
+            },
+            "required": ["asset_id", "track_id", "clip_id"]
+          }
+        },
+        {
+          "operation": "split_clip",
+          "status": "implemented",
+          "description": "Splits a clip at an absolute timeline millisecond into two adjacent clips.",
+          "requires_id": true,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "clip_id": { "type": "string" },
+              "timeline_ms": { "type": "integer", "minimum": 0 },
+              "new_clip_id": { "type": "string" }
+            },
+            "required": ["clip_id", "timeline_ms", "new_clip_id"]
+          }
+        },
+        {
+          "operation": "trim_clip",
+          "status": "implemented",
+          "description": "Modifies the half-open source interval [start_ms, end_ms) for a clip.",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "clip_id": { "type": "string" },
+              "start_ms": { "type": "integer", "minimum": 0 },
+              "end_ms": { "type": "integer", "minimum": 1 }
+            },
+            "required": ["clip_id", "start_ms", "end_ms"]
+          }
+        },
+        {
+          "operation": "move_clip",
+          "status": "implemented",
+          "description": "Moves an independent clip to an explicit millisecond position on a compatible track.",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "clip_id": { "type": "string" },
+              "track_id": { "type": "string" },
+              "position_ms": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["clip_id", "track_id", "position_ms"]
+          }
+        },
+        {
+          "operation": "reorder_clip",
+          "status": "implemented",
+          "description": "Changes the ordinal index of a video clip within the rippling video track.",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "clip_id": { "type": "string" },
+              "new_index": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["clip_id", "new_index"]
+          }
+        },
+        {
+          "operation": "set_audio",
+          "status": "implemented",
+          "description": "Applies linear gain (0..2000 milli) and boundary fade in/out curves in milliseconds.",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "clip_id": { "type": "string" },
+              "gain_milli": { "type": "integer", "minimum": 0, "maximum": 2000 },
+              "fade_in_ms": { "type": "integer", "minimum": 0 },
+              "fade_out_ms": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["clip_id"]
+          }
+        },
+        {
+          "operation": "delete_clip",
+          "status": "implemented",
+          "description": "Removes a clip. Video deletion ripples subsequent video clips left; audio deletion leaves anchors intact. Requires propose_edits.",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "clip_id": { "type": "string" }
+            },
+            "required": ["clip_id"]
+          }
+        }
+      ]
+    },
+    "extension_tiers": {
+      "tier_1_recipe_v1_json": {
+        "status": "implemented",
+        "description": "Portable data-only JSON recipes with 7 fixed parameter steps (brightness, contrast, saturation, hue, low_pass, high_pass, echo). Embedded/copied directly into project schema v3. Zero recompilation required.",
+        "execution": "Built-in Rust core validator and FFmpeg filter mapping."
+      },
+      "tier_1b_declarative_filtergraphs": {
+        "status": "proposed",
+        "description": "Expanded arbitrary declarative filtergraph recipes with dynamic math expressions or YAML formats.",
+        "execution": "Proposed parser sandbox."
+      },
+      "tier_2_sandboxed_wasm_shaders": {
+        "status": "proposed",
+        "description": "Memory-bounded WebAssembly DSP audio processors and WGSL pixel shaders running in an isolated sub-process sandbox.",
+        "execution": "Proposed Wasmtime / WebGPU native runtime with hard memory limits (64MB) and no syscalls."
+      },
+      "tier_3_sidecar_mcp_services": {
+        "status": "proposed",
+        "description": "External local processes connected via Unix domain sockets for AI transcriptions (whisper.cpp) and stem separation.",
+        "execution": "Proposed out-of-band background workers with progress streaming and JSON IPC."
+      }
+    }
+  },
+
+  "permissions": {
+    "boundary_policy": {
+      "allowed_root_enforcement": {
+        "status": "implemented",
+        "description": "All input files and output parent directories must reside inside the user-selected folder."
+      },
+      "canonicalization_and_symlinks": {
+        "status": "implemented",
+        "description": "Paths are canonicalized via std::fs::canonicalize. Symlinks ARE allowed if and only if their canonical destination stays within the authorized root."
+      },
+      "source_file_protection": {
+        "status": "implemented",
+        "description": "Source media files cannot be deleted or overwritten by agent operations."
+      },
+      "output_file_overwrite_protection": {
+        "status": "implemented",
+        "description": "Output path must be an absolute .mp4 filename that does not currently exist."
+      }
+    },
+    "tiers": {
+      "tier_0_inspect": {
+        "status": "implemented",
+        "level": "read_only",
+        "requires_human_approval": false,
+        "tools": ["get_project", "get_timeline", "get_session", "list_effect_recipes"]
+      },
+      "tier_1_safe_mutations": {
+        "status": "implemented",
+        "level": "low_risk_batch",
+        "requires_human_approval": false,
+        "max_operations": 20,
+        "disallowed_operations": ["delete_clip"],
+        "condition": "expected_revision matches active session revision exactly."
+      },
+      "tier_2_destructive_proposals": {
+        "status": "implemented",
+        "level": "high_risk_proposal",
+        "requires_human_approval": true,
+        "tools": ["propose_edits"],
+        "triggers": [
+          "Batch contains 1 or more delete_clip operations",
+          "Batch size exceeds 20 operations"
+        ],
+        "approval_channel": "Desktop GUI sidebar proposal card with Accept/Reject buttons."
+      },
+      "tier_3_export_and_render": {
+        "status": "implemented",
+        "level": "background_processing",
+        "requires_human_approval": false,
+        "tools": ["export_video", "cancel_export"],
+        "current_behavior": "Currently starts directly over MCP if output_path is a fresh .mp4 file within authorized_root and expected_revision matches. Only one active render slot is permitted.",
+        "proposed_gui_modal_confirmation": {
+          "status": "proposed",
+          "description": "Proposed future workflow where every export command pauses for explicit interactive human modal confirmation in the GUI before spawning FFmpeg."
+        }
+      }
+    },
+    "concurrency_and_locks": {
+      "revision_guard": {
+        "status": "implemented",
+        "description": "Every mutation and export requires expected_revision integer."
+      },
+      "string_error_on_stale_revision": {
+        "status": "implemented",
+        "description": "On revision mismatch or validation failure, the Rust session returns a plain string error (e.g. 'Mismatched revision: expected 14, actual 15')."
+      },
+      "structured_http_409_payload": {
+        "status": "proposed",
+        "description": "Proposed structured JSON payload: { error: 'STALE_REVISION', expected: 14, current: 15, divergence_summary: '...' }."
+      },
+      "multi_agent_intent_leases": {
+        "status": "proposed",
+        "description": "Proposed endpoint claim_track_intent where agents acquire timed leases on specific tracks to prevent cross-agent collisions."
+      }
+    }
+  },
+
+  "jobs": {
+    "lifecycle_states": {
+      "implemented": ["idle", "rendering", "cancelled", "completed", "failed"],
+      "proposed": ["queued", "validating", "generating_plan", "awaiting_approval", "paused"]
+    },
+    "controls": {
+      "export_video": {
+        "status": "implemented",
+        "description": "Starts asynchronous background render of an immutable project snapshot to an absolute .mp4 destination."
+      },
+      "cancel_export": {
+        "status": "implemented",
+        "description": "Signals cancellation to the running render, terminates the FFmpeg child process, and removes temporary scratch segments."
+      },
+      "job_polling": {
+        "status": "implemented",
+        "description": "get_session returns the latest render job state, progress stages, and error string if failed."
+      },
+      "pause_and_resume": {
+        "status": "proposed",
+        "description": "Temporarily suspend FFmpeg CPU utilization."
+      },
+      "retry_job": {
+        "status": "proposed",
+        "description": "Re-submit a failed export job after resolving resource errors."
+      }
+    },
+    "provenance_and_audit": {
+      "provenance_signatures": {
+        "status": "proposed",
+        "description": "Cryptographic signature or structured JSON metadata comment embedding inside exported MP4 atom. Currently FFmpeg exports standard container metadata without agent signatures."
+      }
+    }
+  },
+
+  "effects": {
+    "recipe_specification_v1": {
+      "status": "implemented",
+      "manifest_format": "JSON only (YAML is not supported and is rejected)",
+      "storage": "Project schema v3 stores full copies of effect recipes in project JSON",
+      "limits": {
+        "version": 1,
+        "max_id_length": 64,
+        "id_pattern": "^[A-Za-z0-9_-]+$",
+        "max_name_length": 128,
+        "step_count": "1 to 16 steps"
+      },
+      "allowed_steps": [
+        {
+          "name": "brightness",
+          "status": "implemented",
+          "properties": { "gain_milli": { "type": "integer", "min": 0, "max": 2000 } }
+        },
+        {
+          "name": "contrast",
+          "status": "implemented",
+          "properties": { "gain_milli": { "type": "integer", "min": 0, "max": 3000 } }
+        },
+        {
+          "name": "saturation",
+          "status": "implemented",
+          "properties": { "gain_milli": { "type": "integer", "min": 0, "max": 3000 } }
+        },
+        {
+          "name": "hue",
+          "status": "implemented",
+          "properties": { "degrees": { "type": "integer", "min": -360, "max": 360 } }
+        },
+        {
+          "name": "low_pass",
+          "status": "implemented",
+          "properties": { "frequency_hz": { "type": "integer", "min": 20, "max": 20000 } }
+        },
+        {
+          "name": "high_pass",
+          "status": "implemented",
+          "properties": { "frequency_hz": { "type": "integer", "min": 20, "max": 20000 } }
+        },
+        {
+          "name": "echo",
+          "status": "implemented",
+          "properties": {
+            "delay_ms": { "type": "integer", "min": 1, "max": 2000 },
+            "decay_milli": { "type": "integer", "min": 0, "max": 900 }
+          }
+        }
+      ],
+      "disallowed_steps": {
+        "status": "implemented",
+        "description": "Arbitrary FFmpeg filter expressions, custom shell commands, JavaScript, and unvetted audio/video DSP are strictly prohibited by deny_unknown_fields validation."
+      }
+    },
+    "future_recipe_capabilities": {
+      "raw_filtergraphs": {
+        "status": "proposed",
+        "description": "Support for arbitrary FFmpeg complex filter graphs."
+      },
+      "sandboxed_shaders": {
+        "status": "proposed",
+        "description": "WGSL pixel shaders for GPU-accelerated video preview."
+      },
+      "sandboxed_audio_dsp": {
+        "status": "proposed",
+        "description": "WebAssembly real-time audio DSP nodes."
+      }
+    }
+  },
+
+  "recovery": {
+    "history_and_undo": {
+      "whole_project_snapshots": {
+        "status": "implemented",
+        "description": "Rust core Editor stores up to 100 complete project snapshots in history. Undo/Redo swaps the entire project state and increments session revision."
+      },
+      "inverse_edits_and_selective_undo": {
+        "status": "proposed",
+        "description": "Proposed granular undo calculating inverse edit operations for a specific batch without rolling back subsequent unrelated manual edits."
+      }
+    },
+    "persistence": {
+      "autosave_interval_seconds": 30,
+      "autosave_location": {
+        "status": "implemented",
+        "mac_path": "~/Library/Application Support/org.blyacut.editor/autosave.blyacut"
+      },
+      "schema_version": {
+        "status": "implemented",
+        "version_support": "Project schema v2 is migrated on load. Project schema v3 embeds effect recipe copies."
+      }
+    },
+    "failure_recovery": {
+      "atomic_commit_guarantee": {
+        "status": "implemented",
+        "description": "Edits are applied to an isolated candidate project snapshot first. If validation fails, the project state and history are untouched, and a string error is returned."
+      },
+      "scratch_cleanup_on_cancel": {
+        "status": "implemented",
+        "description": "Temporary rendering segments in scratch directories are cleaned up on cancellation or error."
+      },
+      "structured_conflict_recovery": {
+        "status": "proposed",
+        "description": "Proposed automated 3-way merge or rebasing of agent edit proposals upon revision conflict."
+      }
+    }
+  }
+}

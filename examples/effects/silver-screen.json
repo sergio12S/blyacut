@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "id": "silver-screen",
+  "name": "Silver screen",
+  "steps": [
+    { "effect": "saturation", "gain_milli": 0 },
+    { "effect": "contrast", "gain_milli": 1150 }
+  ]
+}

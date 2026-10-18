@@ -1,0 +1,10 @@
+[package]
+name = "blyacut-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+blyacut-core = { path = "../core" }
+blyacut-engine = { path = "../engine" }
+serde.workspace = true
+serde_json.workspace = true

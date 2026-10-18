@@ -1,0 +1,28 @@
+/* BlyaCut semantic palette. Product controls use one action accent; media types
+   and agent activity have their own identities independent of selection. */
+:root {
+  --surface-canvas: #101115;
+  --surface-panel: #191b22;
+  --surface-raised: #23252d;
+  --surface-input: #121419;
+  --border-subtle: #303440;
+  --border-control: #4b5262;
+  --text-primary: #e2e6ef;
+  --text-secondary: #a7afbf;
+  --text-muted: #939daf;
+  --accent: #c1f17b;
+  --accent-ink: #18230c;
+  --video-surface: #284c49;
+  --video-border: #548f83;
+  --audio-surface: #393151;
+  --audio-border: #8d7fb5;
+  --agent: #9bbcff;
+  --danger: #f0a5ad;
+  --radius-control: 6px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-code: ui-monospace, SFMono-Regular, monospace;
+}

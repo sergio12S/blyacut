@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "id": "81408955-2785-47bf-b123-7f210266f0ff",
+  "name": "Untitled project",
+  "settings": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1
+  },
+  "assets": [
+    {
+      "id": "dbfef16a-aef1-4dbb-93de-b9516a90bf3f",
+      "name": "synthetic.mp4",
+      "path": "synthetic.mp4",
+      "duration_ms": 6000,
+      "width": 640,
+      "height": 360,
+      "has_audio": true
+    },
+    {
+      "id": "2fc85f76-cc58-47f2-a7f2-0bbf909ef112",
+      "name": "blue.mp4",
+      "path": "blue.mp4",
+      "duration_ms": 6000,
+      "width": 640,
+      "height": 360,
+      "has_audio": true
+    },
+    {
+      "id": "cda38d7f-e41d-450a-89c4-be2166bbb10f",
+      "name": "soundtrack.wav",
+      "path": "soundtrack.wav",
+      "duration_ms": 6000,
+      "width": 0,
+      "height": 0,
+      "has_audio": true
+    }
+  ],
+  "tracks": [
+    {
+      "id": "8c5316cb-76e2-49d2-ae40-a947945bbb5c",
+      "name": "Video 1",
+      "kind": "video",
+      "clips": [
+        {
+          "id": "6d348960-a602-430a-8934-f1d607aa7fac",
+          "asset_id": "dbfef16a-aef1-4dbb-93de-b9516a90bf3f",
+          "position_ms": 0,
+          "source_start_ms": 0,
+          "source_end_ms": 2000,
+          "gain_milli": 200,
+          "fade_in_ms": 0,
+          "fade_out_ms": 0
+        },
+        {
+          "id": "c9d2f17a-3eb4-43f4-9f35-d32058e3d391",
+          "asset_id": "2fc85f76-cc58-47f2-a7f2-0bbf909ef112",
+          "position_ms": 2000,
+          "source_start_ms": 4000,
+          "source_end_ms": 6000,
+          "gain_milli": 200,
+          "fade_in_ms": 0,
+          "fade_out_ms": 0
+        }
+      ]
+    },
+    {
+      "id": "b7cd905c-906e-4b1c-af8f-16c3e502fb50",
+      "name": "Audio 1",
+      "kind": "audio",
+      "clips": [
+        {
+          "id": "b4f4a18c-96f2-468a-93c2-c6dd216c9c1a",
+          "asset_id": "cda38d7f-e41d-450a-89c4-be2166bbb10f",
+          "position_ms": 0,
+          "source_start_ms": 0,
+          "source_end_ms": 4000,
+          "gain_milli": 250,
+          "fade_in_ms": 500,
+          "fade_out_ms": 500
+        }
+      ]
+    }
+  ]
+}

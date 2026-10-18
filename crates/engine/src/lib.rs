@@ -519,7 +519,7 @@ pub fn step_filter(step: &blyacut_core::effects::EffectStep, clip: &blyacut_core
         Invert {} => "negate".into(),
         Mirror {} => "hflip".into(),
         Flip {} => "vflip".into(),
-        EdgeDetect {} => "edgedetect=mode=colormix".into(),
+        EdgeDetect {} => "edgedetect=mode=wires".into(),
         LowPass { frequency_hz } => format!("lowpass=f={frequency_hz}:t=q:w=0.70710678:p=2"),
         HighPass { frequency_hz } => format!("highpass=f={frequency_hz}:t=q:w=0.70710678:p=2"),
         Echo {

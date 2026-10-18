@@ -15,6 +15,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm ci
       - run: npm run build
+      - run: npm run test:timeline
       - run: cargo fmt --all --check
       - run: cargo test -p blyacut-core -p blyacut-engine -p blyacut-session -p blyacut-mcp --locked
   macos-desktop:

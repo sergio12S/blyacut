@@ -151,10 +151,12 @@ fn folder_scope_rejects_symlink_escape_and_ipc_is_private_revocable() {
         std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600
     );
-    assert!(ipc::call(&path, "get_project", json!({}))
-        .unwrap()
-        .get("project")
-        .is_some());
+    for _ in 0..32 {
+        assert!(ipc::call(&path, "get_project", json!({}))
+            .unwrap()
+            .get("project")
+            .is_some());
+    }
     let config: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     let mut socket = UnixStream::connect(config["socket_path"].as_str().unwrap()).unwrap();
     writeln!(
@@ -223,4 +225,86 @@ fn recipes_hot_reload_and_agent_creation_is_scoped() {
     assert_eq!(third["warnings"].as_array().unwrap().len(), 1);
     assert!(g.call("create_effect_recipe",json!({"recipe":{"version":1,"id":"../escape","name":"Bad","steps":[{"effect":"hue","degrees":0}]}})).is_err());
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn pointer_left_trim_batches_preserve_neighbour_and_undo_once() {
+    let (s, _) = setup();
+    let audio = s.snapshot().unwrap().project.tracks[1].id.clone();
+    let edits = [
+        Edit::Append {
+            asset_id: "media".into(),
+            clip_id: "left".into(),
+            track_id: audio.clone(),
+        },
+        Edit::TrimClip {
+            clip_id: "left".into(),
+            start_ms: 1000,
+            end_ms: 3000,
+        },
+        Edit::MoveClip {
+            clip_id: "left".into(),
+            track_id: audio.clone(),
+            position_ms: 1000,
+        },
+        Edit::Append {
+            asset_id: "media".into(),
+            clip_id: "next".into(),
+            track_id: audio.clone(),
+        },
+        Edit::TrimClip {
+            clip_id: "next".into(),
+            start_ms: 0,
+            end_ms: 2000,
+        },
+    ];
+    let before = s.apply(&edits, s.snapshot().unwrap().revision).unwrap();
+    // Shrink first so moving right does not transiently collide with the neighbour.
+    let shrunk = s
+        .apply(
+            &[
+                Edit::TrimClip {
+                    clip_id: "left".into(),
+                    start_ms: 2000,
+                    end_ms: 3000,
+                },
+                Edit::MoveClip {
+                    clip_id: "left".into(),
+                    track_id: audio.clone(),
+                    position_ms: 2000,
+                },
+            ],
+            before.revision,
+        )
+        .unwrap();
+    assert_eq!(shrunk.revision, before.revision + 1);
+    assert_eq!(shrunk.project.tracks[1].clips[0].position_ms, 2000);
+    assert_eq!(shrunk.project.tracks[1].clips[1].position_ms, 3000);
+    let restored = s.history(false, Some(shrunk.revision)).unwrap();
+    assert_eq!(restored.project, before.project);
+    // Extend left by moving first: extending at the original position would overlap.
+    let extended = s
+        .apply(
+            &[
+                Edit::MoveClip {
+                    clip_id: "left".into(),
+                    track_id: audio,
+                    position_ms: 500,
+                },
+                Edit::TrimClip {
+                    clip_id: "left".into(),
+                    start_ms: 500,
+                    end_ms: 3000,
+                },
+            ],
+            restored.revision,
+        )
+        .unwrap();
+    assert_eq!(extended.project.tracks[1].clips[0].position_ms, 500);
+    assert_eq!(extended.project.tracks[1].clips[0].duration(), 2500);
+    assert_eq!(extended.project.tracks[1].clips[1].position_ms, 3000);
+    assert_eq!(
+        s.history(false, Some(extended.revision)).unwrap().project,
+        before.project
+    );
 }

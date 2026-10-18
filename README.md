@@ -33,7 +33,7 @@ A release executable can be built with `npm run tauri build`. Bundling is disabl
 2. Click **+** beside the asset: video goes to Video 1, audio-only files go to Audio 1. Add more audio tracks with the timeline toolbar.
 3. Click the timeline ruler to seek. Press **S** to split at the playhead.
 4. Select the unwanted section and press Delete. Following video clips ripple left. Independent audio remains anchored.
-5. Use the inspector's source in/out fields (milliseconds) to trim. Set volume, fades and timeline position there; move audio to another track to overlap it. Drag video clips to reorder.
+5. Drag a clip by its middle to move it; drag its left/right edge to trim. **Magnetic on** inserts/reorders video and closes gaps; **Magnetic off** places video freely, with gaps. Audio always moves freely, including between audio tracks. **Snap on** aligns either clip edge to the playhead or other clip edges; hold ⌘/Ctrl to bypass. Invalid overlaps are rejected. Video trimming ripples subsequent video; independent audio stays anchored. The inspector still provides precise source in/out, volume, fades and position.
 6. Press Space to preview, or ← / → to step on the project frame grid.
 7. Save a `.blyacut` project with ⌘S. Open with ⌘O. Undo/redo with ⌘Z / ⇧⌘Z.
 8. Export to a **new** `.mp4` filename. Existing output files are never overwritten.
@@ -60,6 +60,7 @@ While edits are unsaved, a recovery snapshot is written every 30 seconds to the 
 
 ```sh
 npm run build
+npm run test:timeline
 cargo test -p blyacut-core -p blyacut-engine -p blyacut-session -p blyacut-mcp
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check

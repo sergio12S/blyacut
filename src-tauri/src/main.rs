@@ -25,6 +25,14 @@ fn edit(s: State<Desktop>, operation: Edit, expected_revision: u64) -> Result<Sn
     s.session.apply(&[operation], expected_revision)
 }
 #[tauri::command]
+fn edit_batch(
+    s: State<Desktop>,
+    operations: Vec<Edit>,
+    expected_revision: u64,
+) -> Result<Snapshot> {
+    s.session.apply(&operations, expected_revision)
+}
+#[tauri::command]
 fn history(s: State<Desktop>, redo: bool, expected_revision: u64) -> Result<Snapshot> {
     s.session.history(redo, Some(expected_revision))
 }
@@ -165,6 +173,7 @@ fn main() {
     let builder = builder.invoke_handler(tauri::generate_handler![
         get_project,
         edit,
+        edit_batch,
         history,
         import_media,
         save_project,
@@ -184,6 +193,7 @@ fn main() {
     let builder = builder.invoke_handler(tauri::generate_handler![
         get_project,
         edit,
+        edit_batch,
         history,
         import_media,
         save_project,

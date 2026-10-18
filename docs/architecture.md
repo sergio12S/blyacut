@@ -46,3 +46,7 @@ Phase 1 established the editing slice; Phase 2 now adds independent audio compos
 ## Data-only effects
 
 `core::effects` owns Recipe v1 validation; `session::effects` hot-loads bounded local JSON catalogs. Clips embed recipe copies. UI and MCP use `set_effects`; the engine compiles whitelisted numeric steps into fixed FFmpeg filters, while preview uses CSS/Web Audio. No arbitrary code, FFmpeg strings, shader or DSP plugin execution is exposed. See [effect details](effects.md).
+
+## Pointer timeline gestures
+
+The WebView uses Pointer Events/capture rather than HTML5 drag/drop for internal clips. `timeline-gesture.ts` computes transient geometry and command intents; it never mutates the project cache. A gesture captures its starting revision, previews insert/move/trim, and sends one desktop `edit_batch` only on pointer-up. Left-edge audio trim composes trim+move in an order that avoids intermediate neighbour collisions; one batch is one history step. Rust Session/Editor remains authoritative. Escape, pointer cancellation or an incoming project revision discards the preview. Magnetic video reordering uses `reorder_clip`; free placement uses `move_clip`; source-boundary edits use `trim_clip`. Track-kind compatibility and overlap hints are provisional UI feedback, with final validation in Rust.

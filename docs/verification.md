@@ -65,3 +65,26 @@ Native QA verified:
 The final native UI pass was at the default window size. Minimum-size layout, mouse trim, arbitrary effect combinations, auditory preview quality and preview/export parity are not acceptance-tested. One monochrome frame is evidence of color-preview wiring, not a general effect-parity certification. DSP export behavior is measured by Rust integration tests; native Web Audio quality is not measured.
 
 Claude and AGY supplied standalone design prototypes and briefs through GBRAIN. Artifact structure checks pass for both roles. Grok produced no deliverable because its API rejected output-token reservation (HTTP 402); a deprecated fast variant also failed (404). The [design synthesis](design/decision.md) distinguishes working implementation from proposed UI/API features. Prototype screenshots reported by a worker are not counted as main-agent browser acceptance; the live Vue/Tauri QA above was directly observed.
+
+
+## Pointer timeline editing — 2026-10-18
+
+A new `BlyaCut Drag QA` bundle (`org.blyacut.dragqa`) kept the user's open `BlyaCut QA` session untouched. The existing saved three-clip example was opened for temporary tests without overwriting it.
+
+Native mouse gestures verified:
+
+- Move the second video before the first with Magnetic on: both source ranges survive, positions swap 0/2000 ms; one Undo restores the order.
+- Turn Magnetic off and drag the second video to 5000 ms: the first stays at zero and project duration becomes 7000 ms.
+- Move audio to 1000 ms, trim its right edge from 4000 to 3000 source ms, then trim the left edge to 500 ms: timeline position becomes 500 ms and duration 2500 ms, preserving its right edge. One Undo restores the left-trim gesture's two edits together.
+- Add Audio 2 and drag audio onto it at 1000 ms; Video 1 and Audio 1 remain unchanged.
+- Drop video over an occupied region in free mode: a clear overlap message appears and clip positions remain unchanged.
+- Trim the first video from 2000 to 1500 ms by its right edge: the following video moves to 1500 ms; audio remains anchored.
+- With Snap on, drop the video near the audio end: its position resolves to exactly 4000 ms.
+
+During QA, the literal clip border initially initiated a move instead of edge trimming. Hit testing now includes the border in a 10 CSS-pixel edge region, preserving a central move target even on narrow clips.
+
+`npm run test:timeline` passes 14 checks using Node assertions and the existing TypeScript compiler, including source bounds, unequal-length reorder, audio trim ordering, frame-grid rounding, both-edge snap, overlap/track-kind rejection, border hit testing and immutable project snapshots. The new Rust session test executes both audio left-trim command orders next to an adjacent clip and confirms one-revision/one-Undo behavior. Existing export/MCP tests remain relevant; editor commands now enter the same Session through desktop `edit_batch`.
+
+Limitations: single-clip gestures only; no overwrite/automatic track creation on overlap, multiselect, linked-clip group movement or custom track heights. Video trimming still ripples even with Magnetic off, as the footer explicitly states. Autoscroll, Escape/pointer-cancel handling, Ctrl/Cmd snap bypass and incoming-revision cancellation are implemented but not exercised by the native drag acceptance run. Cross-platform pointer behavior and minimum-window layout remain unverified.
+
+Final pass: 24 workspace Rust tests and 14 gesture checks pass. Native QA after the border-hit correction confirmed dragging the exact outer edge changes the source out-point (4000→3000 ms) rather than moving the clip. A full-suite run also exposed an intermittent local-IPC Broken pipe; accepted streams now explicitly use blocking I/O with the existing bounded timeouts. The IPC test issues 32 consecutive authenticated requests before the existing bad-auth/revocation checks; the full suite passes with this change.

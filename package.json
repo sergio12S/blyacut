@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
     "tauri": "tauri",
-    "test": "cargo test -p blyacut-core -p blyacut-engine -p blyacut-session -p blyacut-mcp"
+    "test": "cargo test -p blyacut-core -p blyacut-engine -p blyacut-session -p blyacut-mcp",
+    "test:timeline": "node scripts/test-timeline.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

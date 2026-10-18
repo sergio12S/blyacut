@@ -67,13 +67,19 @@ export const useEditor = defineStore("editor", () => {
   async function refresh() {
     accept(await invoke<Snapshot>("get_project"), false);
   }
-  async function edit(operation: Edit) {
+  async function edit(operation: Edit, expectedRevision = revision.value) {
+    await editBatch([operation], expectedRevision);
+  }
+  async function editBatch(
+    operations: Edit[],
+    expectedRevision = revision.value,
+  ) {
     playing.value = false;
     await guard(async () => {
       accept(
-        await invoke<Snapshot>("edit", {
-          operation,
-          expectedRevision: revision.value,
+        await invoke<Snapshot>("edit_batch", {
+          operations,
+          expectedRevision,
         }),
       );
       dirty.value = true;
@@ -242,6 +248,7 @@ export const useEditor = defineStore("editor", () => {
     guard,
     refresh,
     edit,
+    editBatch,
     importPaths,
     importMedia,
     append,

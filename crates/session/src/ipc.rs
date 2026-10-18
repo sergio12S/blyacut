@@ -78,6 +78,11 @@ impl Server {
                 while !flag.load(Ordering::Acquire) {
                     match listener.accept() {
                         Ok((mut stream, _)) => {
+                            // The accept loop polls; each connected request uses bounded
+                            // blocking I/O, independent of platform flag inheritance.
+                            if stream.set_nonblocking(false).is_err() {
+                                continue;
+                            }
                             let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
                             let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
                             let result = (|| -> Result<Value> {

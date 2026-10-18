@@ -958,3 +958,28 @@ body { color: var(--text-primary); }
 .inspector-section .audio-controls { border-top: 0; }
 .paired-fields small { float: none; display: block; margin-top: 4px; }
 .paired-fields label small { float: none; display: block; margin-top: 4px; }
+/* Pointer gestures work inside the Tauri WebView without native file dragging. */
+.timeline-content { min-width: 100%; }
+.timeline .clip { cursor: grab; touch-action: none; user-select: none; padding-left: 12px; padding-right: 12px; }
+.timeline.is-dragging, .timeline.is-dragging .clip { cursor: grabbing; user-select: none; }
+.clip-stripes { pointer-events: none; }
+.trim-handle { position: absolute; z-index: 3; top: 0; bottom: 0; width: 10px; cursor: ew-resize; }
+.trim-handle.start { left: 0; border-left: 2px solid transparent; }
+.trim-handle.end { right: 0; border-right: 2px solid transparent; }
+.clip:hover .trim-handle, .clip.selected .trim-handle { border-color: #e1f4cc; background: #ffffff14; }
+.timeline .drag-origin { opacity: 0.25; }
+.timeline .drag-ghost { pointer-events: none; z-index: 5; border: 2px dashed var(--accent); background: #375044e6; color: var(--text-primary); }
+.timeline .drag-ghost.invalid { border-color: var(--danger); background: #593039dd; }
+.snap-guide { position: absolute; top: 0; bottom: 0; background: var(--agent); width: 1px; pointer-events: none; z-index: 6; }
+.drag-warning { color: #f0c693; }
+.timeline-toolbar .mode-toggle[aria-pressed="true"] { color: var(--accent); border-color: #62744d; background: #2a3325; }
+.timeline-toolbar .toolbar-group { gap: 6px; }
+.timeline-footer { gap: 16px; min-height: 36px; }
+.timeline-footer > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-footer > span:last-child { flex-shrink: 0; }
+@media (max-width: 1100px) {
+  .timeline-toolbar { padding: 8px; }
+  .timeline-toolbar .toolbar-group strong, .timeline-toolbar kbd { display: none; }
+  .timeline-toolbar .toolbar-group button { padding: 6px 8px; }
+  .timeline-footer > span:last-child { display: none; }
+}

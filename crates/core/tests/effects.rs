@@ -66,3 +66,47 @@ fn recipes_are_strict_bounded_and_project_embeds_a_snapshot() {
     e.redo();
     assert_eq!(e.project, before);
 }
+
+#[test]
+fn every_spec_entry_round_trips_and_builtins_validate() {
+    use blyacut_core::effects::{builtin_recipes, recipe_schema, SPEC};
+    for (name, video, ranges) in SPEC {
+        let mut step = serde_json::json!({ "effect": name });
+        for (param, min, max) in ranges.iter() {
+            step[*param] = serde_json::json!((min + max) / 2);
+        }
+        let parsed: EffectStep = serde_json::from_value(step.clone())
+            .unwrap_or_else(|e| panic!("{name} does not deserialize: {e}"));
+        parsed.validate().unwrap();
+        assert_eq!(parsed.is_video(), *video, "{name}");
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), step);
+        for (param, _, max) in ranges.iter() {
+            let mut out = step.clone();
+            out[*param] = serde_json::json!(max + 1);
+            if let Ok(s) = serde_json::from_value::<EffectStep>(out) {
+                assert!(s.validate().is_err(), "{name}.{param} accepts {}", max + 1);
+            }
+        }
+    }
+    let schema = recipe_schema();
+    assert_eq!(
+        schema["properties"]["steps"]["items"]["oneOf"]
+            .as_array()
+            .unwrap()
+            .len(),
+        SPEC.len()
+    );
+    let builtins = builtin_recipes();
+    assert!(builtins.len() >= 30);
+    let mut ids = std::collections::HashSet::new();
+    for recipe in &builtins {
+        recipe.validate().unwrap();
+        assert!(recipe.id.starts_with("builtin-") && ids.insert(recipe.id.clone()));
+        let video = recipe.steps.iter().filter(|s| s.is_video()).count();
+        assert!(
+            video == 0 || video == recipe.steps.len(),
+            "{} mixes kinds",
+            recipe.id
+        );
+    }
+}

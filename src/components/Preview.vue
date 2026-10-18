@@ -3,7 +3,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEditor } from "../stores/editor";
 import { time, type Clip } from "../types";
-import { AudioEffectPreview, videoEffectStyle } from "../preview-effects";
+import {
+  AudioEffectPreview,
+  previewIsApproximate,
+  videoEffectStyle,
+} from "../preview-effects";
 const e = useEditor();
 const video = ref<HTMLVideoElement>();
 const previewError = ref("");
@@ -29,6 +33,12 @@ const clip = computed(() =>
 );
 const source = computed(() =>
   clip.value ? assetSource(clip.value.asset_id) : "",
+);
+const videoPreviewStyle = computed(() =>
+  videoEffectStyle(clip.value?.effects ?? []),
+);
+const hasNonCssEffects = computed(() =>
+  previewIsApproximate(clip.value?.effects ?? []),
 );
 function volume(c: Clip) {
   const duration = c.source_end_ms - c.source_start_ms,
@@ -138,7 +148,7 @@ onUnmounted(() => {
         v-if="source"
         ref="video"
         :src="source"
-        :style="{ filter: videoEffectStyle(clip?.effects ?? []) }"
+        :style="videoPreviewStyle"
         crossorigin="anonymous"
         playsinline
         preload="auto"
@@ -148,7 +158,14 @@ onUnmounted(() => {
             'This media cannot be decoded by the system WebView. Try an H.264 MP4.'
         "
       />
-      <div v-else class="empty">
+      <div
+        v-if="source && hasNonCssEffects"
+        class="approx-badge"
+        title="У клипа есть эффекты, которые применяются при экспорте через FFmpeg"
+      >
+        превью ≈
+      </div>
+      <div v-else-if="!source" class="empty">
         <div class="empty-symbol">▷</div>
         <strong>{{
           e.audioClips.length ? "Audio composition" : "Your story starts here"
@@ -179,3 +196,21 @@ onUnmounted(() => {
     </div>
   </section>
 </template>
+<style scoped>
+.approx-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(245, 158, 11, 0.9);
+  color: #12141a;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 10;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-ui, sans-serif);
+}
+</style>

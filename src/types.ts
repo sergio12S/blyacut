@@ -7,11 +7,73 @@ export interface Asset {
   height: number;
   has_audio: boolean;
 }
+/** Mirrors `blyacut_core::effects::EffectStep`; Rust validation is authoritative. */
 export type EffectStep =
+  // Video
   | { effect: "brightness" | "contrast" | "saturation"; gain_milli: number }
   | { effect: "hue"; degrees: number }
+  | { effect: "gamma"; gamma_milli: number }
+  | { effect: "vibrance"; intensity_milli: number }
+  | { effect: "temperature"; kelvin: number }
+  | { effect: "blur"; strength: number }
+  | { effect: "sharpen"; amount_milli: number }
+  | { effect: "vignette"; strength_milli: number }
+  | { effect: "film_grain"; strength: number }
+  | { effect: "pixelate"; block: number }
+  | { effect: "posterize"; levels: number }
+  | { effect: "chromatic_aberration"; pixels: number }
+  | { effect: "ghost_trails"; decay_milli: number }
+  | { effect: "fade_from_black" | "fade_to_black"; duration_ms: number }
+  | {
+      effect:
+        "grayscale" | "sepia" | "invert" | "mirror" | "flip" | "edge_detect";
+    }
+  // Audio
   | { effect: "low_pass" | "high_pass"; frequency_hz: number }
-  | { effect: "echo"; delay_ms: number; decay_milli: number };
+  | { effect: "echo"; delay_ms: number; decay_milli: number }
+  | { effect: "bass" | "treble"; gain_db: number }
+  | { effect: "equalizer"; frequency_hz: number; gain_db: number }
+  | { effect: "reverb"; room_milli: number }
+  | { effect: "compressor"; threshold_db: number; ratio: number }
+  | { effect: "pitch"; semitones: number }
+  | {
+      effect: "tremolo" | "vibrato";
+      frequency_milli: number;
+      depth_milli: number;
+    }
+  | { effect: "auto_pan"; frequency_milli: number }
+  | { effect: "bitcrush"; bits: number }
+  | { effect: "denoise"; strength_db: number }
+  | { effect: "stereo_widen"; amount_milli: number }
+  | {
+      effect: "chorus" | "flanger" | "phaser" | "robot" | "normalize";
+    };
+export const VIDEO_EFFECTS = new Set<EffectStep["effect"]>([
+  "brightness",
+  "contrast",
+  "saturation",
+  "hue",
+  "gamma",
+  "vibrance",
+  "temperature",
+  "blur",
+  "sharpen",
+  "vignette",
+  "film_grain",
+  "pixelate",
+  "posterize",
+  "chromatic_aberration",
+  "ghost_trails",
+  "fade_from_black",
+  "fade_to_black",
+  "grayscale",
+  "sepia",
+  "invert",
+  "mirror",
+  "flip",
+  "edge_detect",
+]);
+export const isVideoStep = (s: EffectStep) => VIDEO_EFFECTS.has(s.effect);
 export interface EffectRecipe {
   version: 1;
   id: string;

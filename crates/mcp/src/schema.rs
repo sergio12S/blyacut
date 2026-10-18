@@ -17,7 +17,7 @@ pub fn tools() -> Vec<Value> {
     let time = json!({"type":"integer","minimum":0,"maximum":604800000});
     let revision = json!({"type":"integer","minimum":0});
     let edits = json!({"type":"array","minItems":1,"maxItems":100,"items":{"oneOf":[
-     edit("set_effects",json!({"clip_id":string,"effects":{"type":"array","maxItems":4,"items":blyacut_core::effects::recipe_schema()}}),vec!["clip_id","effects"]),
+     edit("set_effects",json!({"clip_id":string,"effects":{"type":"array","maxItems":8,"items":blyacut_core::effects::recipe_schema()}}),vec!["clip_id","effects"]),
      edit("add_track",json!({"track_id":string,"name":string,"kind":{"type":"string","enum":["video","audio"]}}),vec!["track_id","name","kind"]),
      edit("append",json!({"asset_id":string,"clip_id":string,"track_id":string}),vec!["asset_id","clip_id","track_id"]),
      edit("split_clip",json!({"clip_id":string,"position_ms":time,"new_clip_id":string}),vec!["clip_id","position_ms","new_clip_id"]),
@@ -32,7 +32,7 @@ pub fn tools() -> Vec<Value> {
         vec!["expected_revision", "edits"],
     );
     let mut tools = vec![
-        json!({"name":"list_effect_recipes","description":"Reload validated JSON recipes from the authorized folder's effects directory. Returns recipes and per-file warnings. No app restart required.","inputSchema":object(json!({}),vec![]),"annotations":{"readOnlyHint":true,"openWorldHint":false}}),
+        json!({"name":"list_effect_recipes","description":"Reload validated JSON recipes from the authorized folder's effects directory. Returns folder recipes, per-file warnings and `builtin` presets shipped with BlyaCut (apply any of them with set_effects). No app restart required.","inputSchema":object(json!({}),vec![]),"annotations":{"readOnlyHint":true,"openWorldHint":false}}),
         json!({"name":"create_effect_recipe","description":"Create a named visual/audio effect recipe under authorized-folder/effects. Compose supported primitives; definitions are data, never scripts or raw FFmpeg strings. Existing files are not overwritten. Apply the returned recipe with set_effects; it is embedded in the project.","inputSchema":object(json!({"recipe":blyacut_core::effects::recipe_schema()}),vec!["recipe"]),"annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":false}}),
     ];
     for (name,description,schema,read_only) in [

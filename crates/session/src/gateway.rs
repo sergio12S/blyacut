@@ -80,12 +80,15 @@ impl Gateway {
         match name {
             "list_effect_recipes" => {
                 empty(args)?;
+                let builtin = blyacut_core::effects::builtin_recipes();
                 let directory = self.root.join("effects");
                 if !directory.exists() {
-                    return Ok(json!({"recipes":[],"warnings":[]}));
+                    return Ok(json!({"recipes":[],"warnings":[],"builtin":builtin}));
                 }
                 let directory = self.input(&directory)?;
-                Ok(json!(crate::effects::load(&directory)?))
+                let mut catalog = json!(crate::effects::load(&directory)?);
+                catalog["builtin"] = json!(builtin);
+                Ok(catalog)
             }
             "create_effect_recipe" => {
                 let request: CreateRecipe = parse(args)?;

@@ -46,7 +46,7 @@ No natural-language model is embedded yet. Transcription, subtitles, automatic d
 
 ## Effect recipes and interface design
 
-Load JSON effect chains from a folder in the clip inspector, refresh while running and apply through the same Rust commands used by agents. Seven primitives cover brightness, contrast, saturation, hue, low/high-pass and echo. Applied recipes are embedded in the saved project. New combinations need no reinstall; new shader/DSP algorithms are not implemented. See [effect contract and preview limits](docs/effects.md).
+Load JSON effect chains from a folder in the clip inspector, refresh while running and apply through the same Rust commands used by agents. 43 validated steps (color, blur, grain, pixelate, VHS shift, trails, fades; EQ, reverb, pitch, robot, bitcrush, compressor, chorus and more) and 36 built-in presets are available without loading anything. Applied recipes are embedded in the saved project. New combinations need no reinstall; new shader/DSP algorithms are not implemented. See [effect contract and preview limits](docs/effects.md).
 
 The GBRAIN design swarm produced [UX prototypes and the consolidated design decisions](docs/design/decision.md). Inspector and Agent are now separate tabs; agent proposals have readable edit descriptions.
 

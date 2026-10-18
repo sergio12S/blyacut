@@ -174,8 +174,8 @@ impl Project {
                 {
                     return Err("Invalid clip range or ID".into());
                 }
-                if c.effects.len() > 4
-                    || c.effects.iter().map(|r| r.steps.len()).sum::<usize>() > 16
+                if c.effects.len() > 8
+                    || c.effects.iter().map(|r| r.steps.len()).sum::<usize>() > 32
                 {
                     return Err("Clip effect chain exceeds limits".into());
                 }

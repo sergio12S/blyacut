@@ -106,6 +106,10 @@ async fn load_effect_recipes(root: PathBuf) -> Result<blyacut_session::effects::
         .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+fn builtin_effect_recipes() -> Vec<blyacut_core::effects::EffectRecipe> {
+    blyacut_core::effects::builtin_recipes()
+}
+#[tauri::command]
 fn get_proposal(s: State<Desktop>) -> Result<Option<blyacut_session::Proposal>> {
     s.session.pending()
 }
@@ -183,6 +187,7 @@ fn main() {
         export_video,
         cancel_export,
         load_effect_recipes,
+        builtin_effect_recipes,
         get_proposal,
         resolve_proposal,
         start_agent,
@@ -203,6 +208,7 @@ fn main() {
         export_video,
         cancel_export,
         load_effect_recipes,
+        builtin_effect_recipes,
         get_proposal,
         resolve_proposal
     ]);

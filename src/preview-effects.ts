@@ -1,6 +1,40 @@
 import type { Clip, EffectRecipe, EffectStep } from "./types";
-export function videoEffectStyle(recipes: EffectRecipe[]): string {
-  return recipes
+/** Steps the monitor can approximate; everything else is export-only. */
+export const PREVIEW_VIDEO = new Set<EffectStep["effect"]>([
+  "brightness",
+  "contrast",
+  "saturation",
+  "hue",
+  "blur",
+  "grayscale",
+  "sepia",
+  "invert",
+  "mirror",
+  "flip",
+]);
+export const PREVIEW_AUDIO = new Set<EffectStep["effect"]>([
+  "low_pass",
+  "high_pass",
+  "echo",
+  "bass",
+  "treble",
+  "equalizer",
+  "compressor",
+  "tremolo",
+  "auto_pan",
+  "bitcrush",
+]);
+export const previewIsApproximate = (recipes: EffectRecipe[]) =>
+  recipes
+    .flatMap((r) => r.steps)
+    .some((s) => !PREVIEW_VIDEO.has(s.effect) && !PREVIEW_AUDIO.has(s.effect));
+export function videoEffectStyle(recipes: EffectRecipe[]): {
+  filter?: string;
+  transform?: string;
+} {
+  let x = 1,
+    y = 1;
+  const filter = recipes
     .flatMap((r) => r.steps)
     .flatMap((step) => {
       switch (step.effect) {
@@ -12,11 +46,29 @@ export function videoEffectStyle(recipes: EffectRecipe[]): string {
           return [`saturate(${step.gain_milli / 1000})`];
         case "hue":
           return [`hue-rotate(${step.degrees}deg)`];
+        case "blur":
+          return [`blur(${step.strength / 2}px)`];
+        case "grayscale":
+          return ["grayscale(1)"];
+        case "sepia":
+          return ["sepia(1)"];
+        case "invert":
+          return ["invert(1)"];
+        case "mirror":
+          x = -x;
+          return [];
+        case "flip":
+          y = -y;
+          return [];
         default:
           return [];
       }
     })
     .join(" ");
+  return {
+    filter: filter || undefined,
+    transform: x !== 1 || y !== 1 ? `scale(${x}, ${y})` : undefined,
+  };
 }
 interface Graph {
   source: MediaElementAudioSourceNode;
@@ -40,7 +92,7 @@ export class AudioEffectPreview {
   ) {
     const steps = clip.effects
       .flatMap((r) => r.steps)
-      .filter((s) => ["low_pass", "high_pass", "echo"].includes(s.effect));
+      .filter((s) => PREVIEW_AUDIO.has(s.effect));
     let graph = this.cache.get(element);
     if (!steps.length && !graph) {
       element.volume = gain;
@@ -102,6 +154,67 @@ export class AudioEffectPreview {
         wet.connect(sum);
         current = sum;
         graph.nodes.push(delay, wet, sum);
+      } else if (
+        step.effect === "bass" ||
+        step.effect === "treble" ||
+        step.effect === "equalizer"
+      ) {
+        const filter = context.createBiquadFilter();
+        filter.type =
+          step.effect === "bass"
+            ? "lowshelf"
+            : step.effect === "treble"
+              ? "highshelf"
+              : "peaking";
+        filter.frequency.value =
+          step.effect === "equalizer"
+            ? step.frequency_hz
+            : step.effect === "bass"
+              ? 100
+              : 3000;
+        filter.gain.value = step.gain_db;
+        current.connect(filter);
+        current = filter;
+        graph.nodes.push(filter);
+      } else if (step.effect === "compressor") {
+        const comp = context.createDynamicsCompressor();
+        comp.threshold.value = step.threshold_db;
+        comp.ratio.value = step.ratio;
+        current.connect(comp);
+        current = comp;
+        graph.nodes.push(comp);
+      } else if (step.effect === "tremolo" || step.effect === "auto_pan") {
+        const lfo = context.createOscillator();
+        lfo.frequency.value = step.frequency_milli / 1000;
+        const depth = context.createGain();
+        let node: GainNode | StereoPannerNode;
+        if (step.effect === "tremolo") {
+          node = context.createGain();
+          const d = step.depth_milli / 1000;
+          node.gain.value = 1 - d / 2;
+          depth.gain.value = d / 2;
+          lfo.connect(depth).connect(node.gain);
+        } else {
+          node = context.createStereoPanner();
+          depth.gain.value = 1;
+          lfo.connect(depth).connect(node.pan);
+        }
+        lfo.start();
+        current.connect(node);
+        current = node;
+        graph.nodes.push(lfo, depth, node);
+      } else if (step.effect === "bitcrush") {
+        const shaper = context.createWaveShaper();
+        const levels = 2 ** step.bits;
+        const curve = new Float32Array(4096);
+        for (let i = 0; i < curve.length; i++) {
+          const x = (i / (curve.length - 1)) * 2 - 1;
+          curve[i] = Math.round(x * levels) / levels;
+        }
+        shaper.curve = curve;
+        current.connect(shaper);
+        current = shaper;
+        graph.nodes.push(shaper);
       }
     }
     current.connect(graph.output);

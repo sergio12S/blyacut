@@ -339,27 +339,13 @@ pub fn render(
 
 /// Shared envelope semantics: linear gain, fades measured from the clip boundaries.
 pub fn audio_filter(clip: &blyacut_core::Clip) -> String {
-    use blyacut_core::effects::EffectStep;
-    let mut effects = Vec::new();
-    for step in clip.effects.iter().flat_map(|r| &r.steps) {
-        match step {
-            EffectStep::LowPass { frequency_hz } => {
-                effects.push(format!("lowpass=f={frequency_hz}:t=q:w=0.70710678:p=2"))
-            }
-            EffectStep::HighPass { frequency_hz } => {
-                effects.push(format!("highpass=f={frequency_hz}:t=q:w=0.70710678:p=2"))
-            }
-            EffectStep::Echo {
-                delay_ms,
-                decay_milli,
-            } => effects.push(format!(
-                "aecho=1:1:{}:{:.3}",
-                delay_ms,
-                *decay_milli as f64 / 1000.0
-            )),
-            _ => {}
-        }
-    }
+    let mut effects: Vec<String> = clip
+        .effects
+        .iter()
+        .flat_map(|r| &r.steps)
+        .filter(|s| !s.is_video())
+        .map(|s| step_filter(s, clip))
+        .collect();
     effects.push(format!("volume={:.3}", clip.gain_milli as f64 / 1000.0));
     let mut filter = effects.join(",");
     if clip.fade_in_ms > 0 {
@@ -478,26 +464,132 @@ pub fn mix_args(
 
 /// Validated recipe values are compiled into fixed operators; no external filter strings.
 pub fn video_effect_filters(clip: &blyacut_core::Clip) -> String {
-    use blyacut_core::effects::EffectStep;
     clip.effects
         .iter()
         .flat_map(|r| &r.steps)
-        .filter_map(|s| match s {
-            EffectStep::Brightness { gain_milli } => {
-                let gain = *gain_milli as f64 / 1000.0;
-                Some(format!(
-                    "colorchannelmixer=rr={gain:.3}:gg={gain:.3}:bb={gain:.3}"
-                ))
-            }
-            EffectStep::Contrast { gain_milli } => {
-                Some(format!("eq=contrast={:.3}", *gain_milli as f64 / 1000.0))
-            }
-            EffectStep::Saturation { gain_milli } => {
-                Some(format!("eq=saturation={:.3}", *gain_milli as f64 / 1000.0))
-            }
-            EffectStep::Hue { degrees } => Some(format!("hue=h={degrees}")),
-            _ => None,
-        })
+        .filter(|s| s.is_video())
+        .map(|s| step_filter(s, clip))
         .collect::<Vec<_>>()
         .join(",")
+}
+
+/// One fixed FFmpeg operator per validated step. Only integers from the recipe are formatted in.
+pub fn step_filter(step: &blyacut_core::effects::EffectStep, clip: &blyacut_core::Clip) -> String {
+    use blyacut_core::effects::EffectStep::*;
+    let milli = |v: f64| v / 1000.0;
+    match step {
+        Brightness { gain_milli } => {
+            let g = milli(*gain_milli as f64);
+            format!("colorchannelmixer=rr={g:.3}:gg={g:.3}:bb={g:.3}")
+        }
+        Contrast { gain_milli } => format!("eq=contrast={:.3}", milli(*gain_milli as f64)),
+        Saturation { gain_milli } => format!("eq=saturation={:.3}", milli(*gain_milli as f64)),
+        Hue { degrees } => format!("hue=h={degrees}"),
+        Gamma { gamma_milli } => format!("eq=gamma={:.3}", milli(*gamma_milli as f64)),
+        Vibrance { intensity_milli } => {
+            format!("vibrance=intensity={:.3}", milli(*intensity_milli as f64))
+        }
+        Temperature { kelvin } => format!("colortemperature=temperature={kelvin}"),
+        Blur { strength } => format!("gblur=sigma={strength}"),
+        Sharpen { amount_milli } => format!("unsharp=5:5:{:.3}", milli(*amount_milli as f64)),
+        Vignette { strength_milli } => format!(
+            "vignette=angle={:.4}",
+            std::f64::consts::FRAC_PI_2 * milli(*strength_milli as f64)
+        ),
+        FilmGrain { strength } => format!("noise=alls={strength}:allf=t+u"),
+        Pixelate { block } => format!("pixelize=w={block}:h={block}"),
+        Posterize { levels } => {
+            let q = 256.0 / *levels as f64;
+            format!("lutrgb=r=trunc(val/{q:.3})*{q:.3}:g=trunc(val/{q:.3})*{q:.3}:b=trunc(val/{q:.3})*{q:.3}")
+        }
+        ChromaticAberration { pixels } => format!("rgbashift=rh=-{pixels}:bh={pixels}"),
+        GhostTrails { decay_milli } => format!("lagfun=decay={:.3}", milli(*decay_milli as f64)),
+        FadeFromBlack { duration_ms } => {
+            format!(
+                "fade=t=in:st=0:d={}",
+                sec((*duration_ms as u64).min(clip.duration()))
+            )
+        }
+        FadeToBlack { duration_ms } => {
+            let d = (*duration_ms as u64).min(clip.duration());
+            format!("fade=t=out:st={}:d={}", sec(clip.duration() - d), sec(d))
+        }
+        Grayscale {} => "hue=s=0".into(),
+        Sepia {} => "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131".into(),
+        Invert {} => "negate".into(),
+        Mirror {} => "hflip".into(),
+        Flip {} => "vflip".into(),
+        EdgeDetect {} => "edgedetect=mode=colormix".into(),
+        LowPass { frequency_hz } => format!("lowpass=f={frequency_hz}:t=q:w=0.70710678:p=2"),
+        HighPass { frequency_hz } => format!("highpass=f={frequency_hz}:t=q:w=0.70710678:p=2"),
+        Echo {
+            delay_ms,
+            decay_milli,
+        } => format!(
+            "aecho=1:1:{delay_ms}:{:.3}",
+            milli(*decay_milli as f64).max(0.001)
+        ),
+        Bass { gain_db } => format!("bass=g={gain_db}"),
+        Treble { gain_db } => format!("treble=g={gain_db}"),
+        Equalizer {
+            frequency_hz,
+            gain_db,
+        } => format!("equalizer=f={frequency_hz}:t=q:w=1:g={gain_db}"),
+        Reverb { room_milli } => {
+            let r = milli(*room_milli as f64);
+            format!(
+                "aecho=0.8:0.9:{:.0}|{:.0}|{:.0}:{:.3}|{:.3}|{:.3}",
+                20.0 + 60.0 * r,
+                40.0 + 110.0 * r,
+                60.0 + 160.0 * r,
+                0.2 + 0.3 * r,
+                0.15 + 0.25 * r,
+                0.1 + 0.2 * r
+            )
+        }
+        Compressor {
+            threshold_db,
+            ratio,
+        } => format!(
+            "acompressor=threshold={:.6}:ratio={ratio}",
+            10f64.powf(*threshold_db as f64 / 20.0)
+        ),
+        Pitch { semitones } => {
+            let f = 2f64.powf(*semitones as f64 / 12.0);
+            format!(
+                "aresample=48000,asetrate={:.0},aresample=48000,atempo={:.6}",
+                48000.0 * f,
+                1.0 / f
+            )
+        }
+        Tremolo {
+            frequency_milli,
+            depth_milli,
+        } => format!(
+            "tremolo=f={:.3}:d={:.3}",
+            milli(*frequency_milli as f64),
+            milli(*depth_milli as f64).max(0.001)
+        ),
+        Vibrato {
+            frequency_milli,
+            depth_milli,
+        } => format!(
+            "vibrato=f={:.3}:d={:.3}",
+            milli(*frequency_milli as f64),
+            milli(*depth_milli as f64)
+        ),
+        AutoPan { frequency_milli } => {
+            format!("apulsator=hz={:.3}", milli(*frequency_milli as f64))
+        }
+        Bitcrush { bits } => format!("acrusher=bits={bits}:mode=log:aa=1"),
+        Denoise { strength_db } => format!("afftdn=nr={strength_db}"),
+        StereoWiden { amount_milli } => {
+            format!("extrastereo=m={:.3}", milli(*amount_milli as f64))
+        }
+        Chorus {} => "chorus=0.5:0.9:50|60|40:0.4|0.32|0.3:0.25|0.4|0.3:2|2.3|1.3".into(),
+        Flanger {} => "flanger".into(),
+        Phaser {} => "aphaser".into(),
+        Robot {} => "afftfilt=real='hypot(re,im)':imag='0':win_size=512:overlap=0.75".into(),
+        Normalize {} => "dynaudnorm".into(),
+    }
 }

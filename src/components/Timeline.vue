@@ -410,6 +410,14 @@ function position(c: Clip) {
                   title="Тяните, чтобы обрезать конец"
                 />
                 <span
+                  v-for="k in c.keyframes ?? []"
+                  :key="`k${k.at_ms}`"
+                  class="key-mark"
+                  :style="{ left: (k.at_ms / 1000) * zoom - 4 + 'px' }"
+                  aria-hidden="true"
+                  >◆</span
+                >
+                <span
                   v-if="c.transition_in"
                   class="transition-mark"
                   :title="`${TRANSITION_NAMES[c.transition_in.kind]} · ${c.transition_in.duration_ms / 1000} с`"

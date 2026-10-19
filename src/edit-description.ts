@@ -39,6 +39,10 @@ export function describeEdit(
       const s = edit.settings;
       return `Формат ${s.width}×${s.height}, ${Math.round((s.fps_num / s.fps_den) * 100) / 100} к/с${s.fill ? ", заполнить кадр" : ""}`;
     }
+    case "set_keyframes":
+      return edit.keyframes.length
+        ? `Анимация «${clip(edit.clip_id)}»: ${edit.keyframes.length} ключ.`
+        : `Без анимации: «${clip(edit.clip_id)}»`;
     case "set_ducking":
       return edit.duck_db
         ? `«${clip(edit.clip_id)}» приглушается на ${edit.duck_db} дБ под голос`

@@ -145,35 +145,94 @@ pub(crate) fn media_input(project: &Project, asset: &Asset, start: u64) -> Vec<S
         vec!["-ss".into(), sec(start), "-i".into(), path]
     }
 }
+/// Piecewise-linear FFmpeg expression over `var` through `(seconds, value)` points.
+fn piecewise(points: &[(f64, f64)], var: &str) -> String {
+    let (_, last_v) = points[points.len() - 1];
+    let mut expr = format!("{last_v:.5}");
+    for pair in points.windows(2).rev() {
+        let ((t0, v0), (t1, v1)) = (pair[0], pair[1]);
+        expr = format!(
+            "if(lt({var},{t1:.4}),{v0:.5}+({:.5})*({var}-{t0:.4})/{:.4},{expr})",
+            v1 - v0,
+            (t1 - t0).max(0.0001)
+        );
+    }
+    let (t0, v0) = points[0];
+    format!("if(lt({var},{t0:.4}),{v0:.5},{expr})")
+}
+/// Keyframe values of one transform field, as (clip-local seconds, value) points.
+fn key_points(
+    clip: &blyacut_core::Clip,
+    field: impl Fn(&blyacut_core::Transform) -> f64,
+) -> Option<Vec<(f64, f64)>> {
+    let points: Vec<(f64, f64)> = clip
+        .keyframes
+        .iter()
+        .map(|k| (k.at_ms as f64 / 1000.0, field(&k.transform)))
+        .collect();
+    let varies = points.windows(2).any(|p| (p[0].1 - p[1].1).abs() > 1e-9);
+    varies.then_some(points)
+}
 /// Filter chain for one overlay input: fit the frame, apply its scale, effects and opacity.
+/// Keyframed scale and opacity are evaluated per frame on the clip's own clock.
 pub fn overlay_layer(project: &Project, clip: &blyacut_core::Clip) -> String {
     let s = &project.settings;
-    let t = clip.transform.unwrap_or_default();
-    let scale = t.scale_milli as f64 / 1000.0;
-    let mut chain = format!(
-        "fps={}/{},scale={w}:{h}:force_original_aspect_ratio=decrease,scale=trunc(iw*{scale:.3}/2)*2:trunc(ih*{scale:.3}/2)*2,setsar=1",
+    let t = clip.transform_at(0);
+    let fit = format!(
+        "fps={}/{},scale={w}:{h}:force_original_aspect_ratio=decrease",
         s.fps_num,
         s.fps_den,
         w = s.width,
         h = s.height
     );
+    let scale = match key_points(clip, |t| t.scale_milli as f64 / 1000.0) {
+        Some(points) => {
+            // `scale` re-evaluates per frame but its `t` stays at the first frame; after the
+            // fps filter the frame index gives the clip-local clock exactly.
+            let clock = format!("(n*{}/{})", s.fps_den, s.fps_num);
+            let k = piecewise(&points, &clock);
+            format!("scale=w='trunc(iw*({k})/2)*2':h='trunc(ih*({k})/2)*2':eval=frame")
+        }
+        None => {
+            let k = t.scale_milli as f64 / 1000.0;
+            format!("scale=trunc(iw*{k:.3}/2)*2:trunc(ih*{k:.3}/2)*2")
+        }
+    };
+    let mut chain = format!("{fit},setsar=1");
     let effects = video_effect_filters(clip);
     if !effects.is_empty() {
         chain = format!("{chain},format=yuv420p,{effects}");
     }
-    format!(
-        "{chain},format=yuva420p,colorchannelmixer=aa={:.3}",
-        t.opacity_milli as f64 / 1000.0
-    )
+    let opacity = match key_points(clip, |t| t.opacity_milli as f64 / 1000.0) {
+        Some(points) => format!(
+            "geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='alpha(X,Y)*({})'",
+            piecewise(&points, "T")
+        ),
+        None => format!(
+            "colorchannelmixer=aa={:.3}",
+            t.opacity_milli as f64 / 1000.0
+        ),
+    };
+    // Opacity first: `geq` keeps its first frame size, so the size may only change after it.
+    format!("{chain},format=yuva420p,{opacity},{scale},setsar=1")
 }
 /// `overlay` position: the clip centre lands at the transform's fractional point.
+/// Keyframed positions follow the timeline clock from the clip's start.
 pub fn overlay_position(clip: &blyacut_core::Clip) -> String {
-    let t = clip.transform.unwrap_or_default();
-    format!(
-        "x=main_w*{:.3}-overlay_w/2:y=main_h*{:.3}-overlay_h/2",
-        t.x_milli as f64 / 1000.0,
-        t.y_milli as f64 / 1000.0
-    )
+    let t = clip.transform_at(0);
+    let start = clip.position_ms as f64 / 1000.0;
+    let axis =
+        |field: fn(&blyacut_core::Transform) -> f64, fixed: f64| match key_points(clip, field) {
+            Some(points) => {
+                let shifted: Vec<(f64, f64)> =
+                    points.iter().map(|(at, v)| (at + start, *v)).collect();
+                format!("'{}'", piecewise(&shifted, "t"))
+            }
+            None => format!("{fixed:.3}"),
+        };
+    let x = axis(|t| t.x_milli as f64 / 1000.0, t.x_milli as f64 / 1000.0);
+    let y = axis(|t| t.y_milli as f64 / 1000.0, t.y_milli as f64 / 1000.0);
+    format!("x=main_w*{x}-overlay_w/2:y=main_h*{y}-overlay_h/2:eval=frame")
 }
 /// Composite overlay clips (in track order) onto the rendered main track.
 fn overlay_args(

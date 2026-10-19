@@ -23,10 +23,10 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 | Multiple video tracks / PiP / overlays | ✔ | ✔ overlay tracks with position/scale/opacity | — |
 | Transitions | 100+ in categories | ✔ 20 kinds, handle-based, length-preserving | more kinds, monitor preview |
 | Speed, reverse, freeze frame, speed curves | ✔ | ✔ 0.25×–4×, reverse, freeze frame | speed curves |
-| Keyframes (position/scale/opacity/volume) | ✔ | — | P2 |
+| Keyframes (position/scale/opacity/volume) | ✔ | ✔ overlays: position/scale/opacity + presets | volume keyframes, easing |
 | Crop/scale/position | ✔ | ✔ for overlays; crop-to-fill for the frame | per-clip crop |
 | Auto subtitles (speech-to-text) | ✔ | Planned (whisper.cpp) | P2 |
-| Audio ducking | ✔ | Agent can set gains manually | P2 |
+| Audio ducking | ✔ | ✔ sidechain, chosen depth | — |
 | Chroma key | ✔ | — | P3 |
 | Motion / camera tracking, AI generation | ✔ | — | P3 / out of scope locally |
 | Export presets (resolution, vertical, social) | ✔ | ✔ 1080p/720p/4K, 60 fps, 9:16, 1:1 | bitrate/codec choice |

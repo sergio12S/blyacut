@@ -21,6 +21,7 @@ fn clip() -> Clip {
         speed_milli: 1000,
         reverse: false,
         duck_db: 0,
+        keyframes: vec![],
     }
 }
 

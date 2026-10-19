@@ -66,6 +66,9 @@ pub struct Clip {
     /// Play the source range backwards.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reverse: bool,
+    /// Overlay animation; when present it replaces `transform` (linear between keys).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keyframes: Vec<Keyframe>,
     /// Audio-track clips only: duck this clip by about this many dB while voice plays
     /// (main-video sound and non-ducking audio clips). 0 = off.
     #[serde(default, skip_serializing_if = "is_zero")]
@@ -144,8 +147,9 @@ pub struct Transition {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Transform {
-    pub x_milli: u16,
-    pub y_milli: u16,
+    /// May go off-frame (-500..=1500) so layers can slide in from outside.
+    pub x_milli: i16,
+    pub y_milli: i16,
     pub scale_milli: u16,
     pub opacity_milli: u16,
 }
@@ -161,15 +165,33 @@ impl Default for Transform {
 }
 impl Transform {
     pub fn validate(&self) -> Result<()> {
-        if self.x_milli > 1000
-            || self.y_milli > 1000
+        if !(-500..=1500).contains(&self.x_milli)
+            || !(-500..=1500).contains(&self.y_milli)
             || !(10..=4000).contains(&self.scale_milli)
             || self.opacity_milli > 1000
         {
-            return Err("Transform: x/y/opacity 0..=1000, scale 10..=4000".into());
+            return Err("Transform: x/y -500..=1500, scale 10..=4000, opacity 0..=1000".into());
         }
         Ok(())
     }
+    /// Linear blend towards `other` by `f` (0..=1).
+    pub fn lerp(&self, other: &Self, f: f64) -> Self {
+        let mix = |a: f64, b: f64| a + (b - a) * f.clamp(0.0, 1.0);
+        Self {
+            x_milli: mix(self.x_milli as f64, other.x_milli as f64).round() as i16,
+            y_milli: mix(self.y_milli as f64, other.y_milli as f64).round() as i16,
+            scale_milli: mix(self.scale_milli as f64, other.scale_milli as f64).round() as u16,
+            opacity_milli: mix(self.opacity_milli as f64, other.opacity_milli as f64).round()
+                as u16,
+        }
+    }
+}
+/// An overlay placement at a time inside the clip (timeline ms from the clip start).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Keyframe {
+    pub at_ms: u64,
+    pub transform: Transform,
 }
 impl Clip {
     /// Length of the source range used.
@@ -191,6 +213,26 @@ impl Clip {
         } else {
             self.source_start_ms + offset
         }
+    }
+    /// Overlay placement `local_ms` into the clip, following keyframes when present.
+    pub fn transform_at(&self, local_ms: u64) -> Transform {
+        let Some(first) = self.keyframes.first() else {
+            return self.transform.unwrap_or_default();
+        };
+        if local_ms <= first.at_ms {
+            return first.transform;
+        }
+        for pair in self.keyframes.windows(2) {
+            let (a, b) = (&pair[0], &pair[1]);
+            if local_ms <= b.at_ms {
+                let f = (local_ms - a.at_ms) as f64 / (b.at_ms - a.at_ms).max(1) as f64;
+                return a.transform.lerp(&b.transform, f);
+            }
+        }
+        self.keyframes
+            .last()
+            .map(|k| k.transform)
+            .unwrap_or_default()
     }
     /// Normal-speed, forward clips are the only ones transitions can join (for now).
     pub fn is_retimed(&self) -> bool {
@@ -403,6 +445,21 @@ impl Project {
                         );
                     }
                 }
+                if !c.keyframes.is_empty() {
+                    if !self.is_overlay_track(t) || c.keyframes.len() > 32 {
+                        return Err("Keyframes animate overlay clips (V2+), at most 32".into());
+                    }
+                    let mut previous = None;
+                    for k in &c.keyframes {
+                        k.transform.validate()?;
+                        if k.at_ms > c.duration() || previous.is_some_and(|p| k.at_ms <= p) {
+                            return Err(
+                                "Keyframe times must increase and stay inside the clip".into()
+                            );
+                        }
+                        previous = Some(k.at_ms);
+                    }
+                }
                 if c.duck_db != 0 && (t.kind != TrackKind::Audio || !(3..=30).contains(&c.duck_db))
                 {
                     return Err("Ducking applies to audio-track clips, 3..=30 dB".into());
@@ -480,6 +537,11 @@ pub enum Edit {
         /// Trim the outgoing end / incoming start just enough to create the needed handles.
         #[serde(default)]
         make_room: bool,
+    },
+    /// Animate an overlay clip: keyframes at strictly increasing clip-local times (empty = none).
+    SetKeyframes {
+        clip_id: String,
+        keyframes: Vec<Keyframe>,
     },
     /// Duck an audio-track clip (music) under voice by about `duck_db` (0 = off, 3..=30).
     SetDucking {
@@ -655,6 +717,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             speed_milli: 1000,
             reverse: false,
             duck_db: 0,
+            keyframes: vec![],
         });
     } else {
         let cid = match &edit {
@@ -667,7 +730,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             | Edit::SetTransform { clip_id, .. }
             | Edit::SetTransition { clip_id, .. }
             | Edit::SetSpeed { clip_id, .. }
-            | Edit::SetDucking { clip_id, .. } => clip_id,
+            | Edit::SetDucking { clip_id, .. }
+            | Edit::SetKeyframes { clip_id, .. } => clip_id,
             _ => unreachable!(),
         };
         let t = p
@@ -718,7 +782,33 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                     speed_milli: c.speed_milli,
                     reverse: c.reverse,
                     duck_db: c.duck_db,
+                    // Keys after the cut move into the right part, re-based on its start.
+                    keyframes: c
+                        .keyframes
+                        .iter()
+                        .filter(|k| k.at_ms > offset)
+                        .map(|k| Keyframe {
+                            at_ms: k.at_ms - offset,
+                            transform: k.transform,
+                        })
+                        .collect(),
                 };
+                if !c.keyframes.is_empty() {
+                    // Both parts keep the placement at the cut so the motion stays continuous.
+                    let at_cut = c.transform_at(offset);
+                    c.keyframes.retain(|k| k.at_ms < offset);
+                    c.keyframes.push(Keyframe {
+                        at_ms: offset,
+                        transform: at_cut,
+                    });
+                    right.keyframes.insert(
+                        0,
+                        Keyframe {
+                            at_ms: 0,
+                            transform: at_cut,
+                        },
+                    );
+                }
                 if right.source_start_ms >= right.source_end_ms
                     || cut == c.source_start_ms
                     || cut == c.source_end_ms
@@ -761,6 +851,9 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             }
             Edit::SetTransform { transform, .. } => {
                 t.clips[i].transform = transform;
+            }
+            Edit::SetKeyframes { keyframes, .. } => {
+                t.clips[i].keyframes = keyframes;
             }
             Edit::SetDucking { duck_db, .. } => {
                 t.clips[i].duck_db = duck_db;

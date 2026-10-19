@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEditor } from "../stores/editor";
-import { FULL_FRAME, isOverlayTrack, time, type Clip } from "../types";
+import { isOverlayTrack, time, transformAt, type Clip } from "../types";
 import { clipLength, sourceAt } from "../timeline-gesture";
 import {
   AudioEffectPreview,
@@ -72,7 +72,9 @@ function layerStyle(c: Clip) {
   if (!s || !a) return {};
   const draft = e.draftTransform;
   const t =
-    (draft?.clipId === c.id ? draft.transform : c.transform) ?? FULL_FRAME;
+    draft?.clipId === c.id
+      ? draft.transform
+      : transformAt(c, e.playhead - c.position_ms);
   const fitScale = Math.min(s.width / a.width, s.height / a.height);
   const k = (box.value.width / s.width) * fitScale * (t.scale_milli / 1000);
   const width = a.width * k,

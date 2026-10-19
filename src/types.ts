@@ -16,6 +16,33 @@ export interface Transform {
   scale_milli: number;
   opacity_milli: number;
 }
+export interface Keyframe {
+  at_ms: number;
+  transform: Transform;
+}
+/** Overlay placement `local` ms into the clip (mirrors Rust `Clip::transform_at`). */
+export function transformAt(clip: Clip, local: number): Transform {
+  const keys = clip.keyframes ?? [];
+  if (!keys.length) return clip.transform ?? FULL_FRAME;
+  if (local <= keys[0].at_ms) return keys[0].transform;
+  for (let i = 1; i < keys.length; i++) {
+    const [a, b] = [keys[i - 1], keys[i]];
+    if (local <= b.at_ms) {
+      const f = (local - a.at_ms) / Math.max(1, b.at_ms - a.at_ms);
+      const mix = (x: number, y: number) => Math.round(x + (y - x) * f);
+      return {
+        x_milli: mix(a.transform.x_milli, b.transform.x_milli),
+        y_milli: mix(a.transform.y_milli, b.transform.y_milli),
+        scale_milli: mix(a.transform.scale_milli, b.transform.scale_milli),
+        opacity_milli: mix(
+          a.transform.opacity_milli,
+          b.transform.opacity_milli,
+        ),
+      };
+    }
+  }
+  return keys[keys.length - 1].transform;
+}
 export const FULL_FRAME: Transform = {
   x_milli: 500,
   y_milli: 500,
@@ -124,6 +151,8 @@ export interface Clip {
   /** Speed in thousandths (1000 = normal). */
   speed_milli?: number;
   reverse?: boolean;
+  /** Overlay animation (replaces `transform` when present). */
+  keyframes?: Keyframe[];
   /** Audio-track clips: dB to duck under voice (0 = off). */
   duck_db?: number;
 }
@@ -195,6 +224,7 @@ export type Edit =
   | { operation: "set_transform"; clip_id: string; transform: Transform | null }
   | { operation: "set_settings"; settings: Settings }
   | { operation: "set_ducking"; clip_id: string; duck_db: number }
+  | { operation: "set_keyframes"; clip_id: string; keyframes: Keyframe[] }
   | {
       operation: "set_speed";
       clip_id: string;

@@ -82,13 +82,17 @@ pub fn preview_frame(project: &Project, time_ms: u64, out: &Path, width: u32) ->
             }
             args.extend(["-i".into(), asset.path.to_string_lossy().into()]);
             let input = i + 1;
+            // A single frame: freeze any animation at this instant.
+            let mut still = (*clip).clone();
+            still.transform = Some(clip.transform_at(time_ms - clip.position_ms));
+            still.keyframes.clear();
             graph.push(format!(
                 "[{input}:v]{}[o{input}]",
-                crate::overlay_layer(project, clip)
+                crate::overlay_layer(project, &still)
             ));
             graph.push(format!(
                 "[{current}][o{input}]overlay={}[v{input}]",
-                crate::overlay_position(clip)
+                crate::overlay_position(&still)
             ));
             current = format!("v{input}");
         }

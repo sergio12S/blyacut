@@ -193,6 +193,7 @@ export type Edit =
       operation: "set_transition";
       clip_id: string;
       transition: Transition | null;
+      make_room?: boolean;
     }
   | {
       operation: "add_track";

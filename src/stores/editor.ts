@@ -211,6 +211,8 @@ export const useEditor = defineStore("editor", () => {
       operation: "set_transition",
       clip_id: clipId,
       transition: kind ? { kind, duration_ms: durationMs } : null,
+      // Trim the clip edges just enough for the handles instead of failing.
+      make_room: true,
     });
     const handles = /needs (\d+) ms of media after .* and (\d+) ms before/.exec(
       error.value,

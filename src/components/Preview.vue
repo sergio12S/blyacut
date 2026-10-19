@@ -44,6 +44,10 @@ const overlays = computed(() =>
 );
 // The frame box has the project's aspect ratio and fits the screen.
 const screen = ref<HTMLElement>();
+const safeZones = ref(false);
+const vertical = computed(
+  () => (e.project?.settings.height ?? 0) > (e.project?.settings.width ?? 1),
+);
 const box = ref({ width: 0, height: 0 });
 let observer: ResizeObserver | undefined;
 function fit() {
@@ -195,7 +199,15 @@ onUnmounted(() => {
 <template>
   <section class="preview">
     <div class="panel-title">
-      <span>МОНИТОР</span
+      <span
+        >МОНИТОР<button
+          class="safe-toggle"
+          :aria-pressed="safeZones"
+          title="Показать, что закроет интерфейс соцсетей (вертикаль) или рамку безопасных титров"
+          @click="safeZones = !safeZones"
+        >
+          Безопасная зона
+        </button></span
       ><span
         >{{ e.project?.settings.width }} × {{ e.project?.settings.height }} ·
         {{ e.project?.settings.fps_num }} fps</span
@@ -243,6 +255,19 @@ onUnmounted(() => {
               'Это видео WebView не может воспроизвести. Попробуйте H.264 MP4 (экспорт всё равно сработает).'
           "
         />
+        <div
+          v-if="safeZones"
+          class="safe"
+          :class="{ vertical }"
+          aria-hidden="true"
+        >
+          <template v-if="vertical">
+            <i class="top" /><i class="bottom"
+              ><span>интерфейс соцсетей</span></i
+            ><i class="right" />
+          </template>
+          <i v-else class="title-safe" />
+        </div>
         <template v-for="c in overlays" :key="c.id">
           <img
             v-if="asset(c)?.still"
@@ -344,5 +369,59 @@ onUnmounted(() => {
 }
 .approx-badge {
   z-index: 3;
+}
+.safe-toggle {
+  margin-left: 10px;
+  padding: 1px 7px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.safe-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: #62744d;
+}
+.safe {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.safe i {
+  position: absolute;
+  background: repeating-linear-gradient(
+    45deg,
+    #ff5a5a40 0 6px,
+    #ff5a5a18 6px 12px
+  );
+}
+.safe .top {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 8%;
+}
+.safe .bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+}
+.safe .bottom span {
+  position: absolute;
+  left: 6px;
+  bottom: 4px;
+  font-size: 10px;
+  color: #ffd0d0;
+}
+.safe .right {
+  right: 0;
+  top: 30%;
+  bottom: 22%;
+  width: 14%;
+}
+.safe .title-safe {
+  inset: 5%;
+  background: none;
+  border: 1px dashed #ffffff88;
 }
 </style>

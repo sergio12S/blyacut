@@ -427,6 +427,9 @@ pub enum Edit {
     SetTransition {
         clip_id: String,
         transition: Option<Transition>,
+        /// Trim the outgoing end / incoming start just enough to create the needed handles.
+        #[serde(default)]
+        make_room: bool,
     },
     /// Place an overlay clip; `null` resets it to fill the frame.
     SetTransform {
@@ -670,12 +673,46 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             Edit::SetTransform { transform, .. } => {
                 t.clips[i].transform = transform;
             }
-            Edit::SetTransition { transition, .. } => {
+            Edit::SetTransition {
+                transition,
+                make_room,
+                ..
+            } => {
                 if !ripples {
                     return Err("Transitions join clips on the main video track".into());
                 }
                 if transition.is_some() && i == 0 {
                     return Err("The first clip has no previous clip to transition from".into());
+                }
+                if let (Some(tr), true) = (&transition, make_room) {
+                    let (before, after) = transition_halves(tr);
+                    let still = |id: &str| {
+                        p.assets
+                            .iter()
+                            .find(|a| a.id == id)
+                            .map(|a| (a.still, a.duration_ms))
+                            .unwrap_or((false, 0))
+                    };
+                    let (prev_still, prev_len) = still(&t.clips[i - 1].asset_id);
+                    let (cur_still, _) = still(&t.clips[i].asset_id);
+                    let prev = &mut t.clips[i - 1];
+                    if !prev_still {
+                        let deficit = (prev.source_end_ms + after).saturating_sub(prev_len);
+                        prev.source_end_ms = prev.source_end_ms.saturating_sub(deficit);
+                    }
+                    let cur = &mut t.clips[i];
+                    if !cur_still && cur.source_start_ms < before {
+                        cur.source_start_ms = before;
+                    }
+                    for c in [i - 1, i] {
+                        let c = &mut t.clips[c];
+                        if c.source_start_ms >= c.source_end_ms {
+                            return Err("Clip is too short to make room for this transition".into());
+                        }
+                        c.fade_in_ms = c.fade_in_ms.min(c.duration());
+                        c.fade_out_ms = c.fade_out_ms.min(c.duration() - c.fade_in_ms);
+                    }
+                    ripple(t);
                 }
                 t.clips[i].transition_in = transition;
             }

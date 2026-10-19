@@ -147,11 +147,6 @@ async fn create_text_overlay(
     position: String,
     style: Option<String>,
 ) -> Result<Snapshot> {
-    let center_y = match position.as_str() {
-        "top" => 0.15,
-        "center" => 0.5,
-        _ => 0.82,
-    };
     let dir = app
         .path()
         .app_data_dir()
@@ -162,6 +157,7 @@ async fn create_text_overlay(
     let session = s.session.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let snapshot = session.snapshot()?;
+        let center_y = blyacut_engine::studio::text_position(&snapshot.project, &position)?;
         let path = dir.join(format!("text-{}.png", blyacut_core::id()));
         let backing = style.as_deref().unwrap_or("box").parse()?;
         blyacut_engine::studio::text_overlay(

@@ -99,6 +99,7 @@ fn crossfade_uses_handles_and_keeps_the_timeline_length() {
         .execute(Edit::SetTransition {
             clip_id: "blue".into(),
             transition: fade(1000),
+            make_room: false,
         })
         .unwrap_err();
     assert!(
@@ -115,6 +116,7 @@ fn crossfade_uses_handles_and_keeps_the_timeline_length() {
             Edit::SetTransition {
                 clip_id: "blue".into(),
                 transition: fade(1000),
+                make_room: false,
             },
         ],
         e.revision,
@@ -123,7 +125,8 @@ fn crossfade_uses_handles_and_keeps_the_timeline_length() {
     assert!(
         e.execute(Edit::SetTransition {
             clip_id: "red".into(),
-            transition: fade(500)
+            transition: fade(500),
+            make_room: false
         })
         .is_err(),
         "first clip"
@@ -152,6 +155,7 @@ fn crossfade_uses_handles_and_keeps_the_timeline_length() {
             kind: TransitionKind::Wipeleft,
             duration_ms: 600,
         }),
+        make_room: false,
     })
     .unwrap();
     e.execute(Edit::ReorderClip {
@@ -275,6 +279,7 @@ fn every_transition_kind_renders() {
                 kind,
                 duration_ms: 400,
             }),
+            make_room: false,
         })
         .unwrap();
         let out = dir.join(format!("{}.mp4", kind.name()));
@@ -286,5 +291,79 @@ fn every_transition_kind_renders() {
             kind.name()
         );
     }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn make_room_trims_just_enough_and_ripples() {
+    let dir = std::env::temp_dir().join(format!("blyacut-room-{}", id()));
+    std::fs::create_dir(&dir).unwrap();
+    let mut e = Editor::default();
+    let (red, blue) = (
+        color(&dir, "red.mp4", "red", "160x90"),
+        color(&dir, "blue.mp4", "blue", "160x90"),
+    );
+    let (r, b) = (red.id.clone(), blue.id.clone());
+    e.import(red).unwrap();
+    e.import(blue).unwrap();
+    let vt = e.project.tracks[0].id.clone();
+    e.batch(
+        &[
+            Edit::Append {
+                asset_id: r,
+                clip_id: "red".into(),
+                track_id: vt.clone(),
+            },
+            Edit::Append {
+                asset_id: b,
+                clip_id: "blue".into(),
+                track_id: vt,
+            },
+        ],
+        e.revision,
+    )
+    .unwrap();
+    let fade = Some(Transition {
+        kind: TransitionKind::Fade,
+        duration_ms: 1200,
+    });
+    assert!(e
+        .execute(Edit::SetTransition {
+            clip_id: "blue".into(),
+            transition: fade,
+            make_room: false
+        })
+        .is_err());
+    e.execute(Edit::SetTransition {
+        clip_id: "blue".into(),
+        transition: fade,
+        make_room: true,
+    })
+    .unwrap();
+    let clips = &e.project.tracks[0].clips;
+    let full = e.project.assets[0].duration_ms;
+    assert_eq!(
+        clips[0].source_end_ms,
+        full - 600,
+        "outgoing end gives 600 ms of handle"
+    );
+    assert_eq!(
+        clips[1].source_start_ms, 600,
+        "incoming start gives 600 ms of handle"
+    );
+    assert_eq!(
+        clips[1].position_ms,
+        clips[0].duration(),
+        "main track rippled"
+    );
+    let out = dir.join("room.mp4");
+    render(&e.project, &out, Arc::new(AtomicBool::new(false)), |_| {}).unwrap();
+    assert!(
+        probe(&out)
+            .unwrap()
+            .duration_ms
+            .abs_diff(e.project.duration())
+            < 120
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }

@@ -234,6 +234,8 @@ pub struct TextLayout {
     /// Maximum block height as a fraction of the frame height.
     pub block: f32,
     pub backing: Backing,
+    /// The block never extends below this fraction of the frame height.
+    pub bottom_limit: f32,
 }
 /// What keeps text legible over busy video.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -269,7 +271,7 @@ pub fn render_text(
     layout: &TextLayout,
 ) -> Result<Vec<u8>> {
     use ab_glyph::{point, Font, FontVec, PxScale, ScaleFont};
-    let lines: Vec<&str> = text.lines().map(str::trim).collect();
+    let mut lines: Vec<String> = text.lines().map(|l| l.trim().to_string()).collect();
     if text.trim().is_empty() || lines.len() > 4 || text.chars().count() > 200 {
         return Err("Text must be 1–200 characters on at most 4 lines".into());
     }
@@ -282,14 +284,55 @@ pub fn render_text(
             .sum::<f32>()
     };
     // Largest size whose widest line fits 84% of the frame and whose block fits `layout.block`.
-    let mut px = height as f32 * layout.block / lines.len() as f32 / 1.25;
-    while px > 8.0 && lines.iter().any(|l| measure(px, l) > width as f32 * 0.84) {
-        px *= 0.94;
+    let natural = |count: usize| height as f32 * layout.block / count as f32 / 1.25;
+    let fit = |lines: &[String]| {
+        let mut px = natural(lines.len());
+        while px > 8.0 && lines.iter().any(|l| measure(px, l) > width as f32 * 0.84) {
+            px *= 0.94;
+        }
+        px
+    };
+    let mut px = fit(&lines);
+    // Narrow frames (e.g. 9:16): wrap the widest line at the space nearest its middle
+    // while that gives larger glyphs than shrinking it.
+    while lines.len() < 4 && px < natural(lines.len()) * 0.75 {
+        let (index, _) = lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| (i, measure(px, l)))
+            .fold(
+                (0, 0.0),
+                |best, item| if item.1 > best.1 { item } else { best },
+            );
+        let line = &lines[index];
+        let middle = line.chars().count() / 2;
+        let Some(split) = line
+            .char_indices()
+            .filter(|(_, c)| *c == ' ')
+            .map(|(byte, _)| byte)
+            .min_by_key(|byte| line[..*byte].chars().count().abs_diff(middle))
+        else {
+            break;
+        };
+        let mut wrapped = lines.clone();
+        let (left, right) = (
+            line[..split].trim().to_string(),
+            line[split..].trim().to_string(),
+        );
+        wrapped.splice(index..=index, [left, right]);
+        let wrapped_px = fit(&wrapped);
+        if wrapped_px <= px {
+            break;
+        }
+        lines = wrapped;
+        px = wrapped_px;
     }
     let scaled = font.as_scaled(PxScale::from(px));
     let line_h = px * 1.25;
     let block = line_h * lines.len() as f32;
-    let top = (height as f32 * layout.center_y - block / 2.0).clamp(0.0, height as f32 - block);
+    let top = (height as f32 * layout.center_y - block / 2.0)
+        .min(height as f32 * layout.bottom_limit - block)
+        .clamp(0.0, height as f32 - block);
     let mut frame = match background {
         Some([r, g, b]) => [r, g, b, 255].repeat((width * height) as usize),
         None => vec![0; (width * height * 4) as usize],
@@ -366,6 +409,7 @@ pub fn title_frame(text: &str, width: u32, height: u32, style: &TitleStyle) -> R
         center_y: 0.5,
         block: 0.7,
         backing: Backing::None,
+        bottom_limit: 1.0,
     };
     let rgba = render_text(
         text,
@@ -381,6 +425,20 @@ pub fn title_frame(text: &str, width: u32, height: u32, style: &TitleStyle) -> R
         .iter()
         .flat_map(|p| [p[0], p[1], p[2]])
         .collect())
+}
+
+/// Vertical centre for a named text position. Vertical frames keep text clear of the
+/// app chrome that Shorts/Reels/TikTok draw over the bottom ~22% and the top edge.
+pub fn text_position(project: &Project, position: &str) -> Result<f32> {
+    let vertical = project.settings.height > project.settings.width;
+    Ok(match (position, vertical) {
+        ("top", false) => 0.15,
+        ("top", true) => 0.13,
+        ("center", _) => 0.5,
+        ("bottom", false) => 0.82,
+        ("bottom", true) => 0.70,
+        _ => return Err("position must be top, center or bottom".into()),
+    })
 }
 
 /// Transparent full-frame PNG with text; place it on an overlay track over video.
@@ -401,6 +459,8 @@ pub fn text_overlay(
         center_y,
         block: 0.22,
         backing,
+        // Above the Shorts/Reels/TikTok controls on vertical frames.
+        bottom_limit: if s.height > s.width { 0.77 } else { 1.0 },
     };
     let frame = render_text(text, s.width, s.height, text_rgb, None, &layout)?;
     let parent = out.parent().ok_or("Output needs a directory")?;

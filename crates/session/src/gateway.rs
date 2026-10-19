@@ -305,13 +305,8 @@ impl Gateway {
             "create_text_overlay" => {
                 let a: TextOverlay = parse(args)?;
                 let path = self.new_file(&a.output_path, "png")?;
-                let center_y = match a.position.as_str() {
-                    "top" => 0.15,
-                    "center" => 0.5,
-                    "bottom" => 0.82,
-                    _ => return Err("position must be top, center or bottom".into()),
-                };
                 let s = self.session.snapshot()?;
+                let center_y = blyacut_engine::studio::text_position(&s.project, &a.position)?;
                 blyacut_engine::studio::text_overlay(
                     &s.project,
                     &a.text,

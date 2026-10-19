@@ -90,3 +90,48 @@ fn preview_title_and_loudness_work_for_agents() {
     );
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn vertical_captions_wrap_and_stay_above_platform_controls() {
+    let dir = std::env::temp_dir().join(format!("blyacut-vtext-{}", id()));
+    std::fs::create_dir(&dir).unwrap();
+    let mut p = Project::default();
+    p.settings.width = 540;
+    p.settings.height = 960;
+    let out = dir.join("caption.png");
+    let y = text_position(&p, "bottom").unwrap();
+    text_overlay(
+        &p,
+        "Автономный монтаж силами агентов в BlyaCut",
+        [255, 230, 0],
+        y,
+        Backing::Box,
+        &out,
+    )
+    .unwrap();
+    // Alpha per row: something drawn, nothing in the bottom 22%.
+    let raw = Command::new(binary("ffmpeg"))
+        .args(["-v", "error", "-i"])
+        .arg(&out)
+        .args(["-vf", "format=rgba", "-f", "rawvideo", "pipe:1"])
+        .output()
+        .unwrap()
+        .stdout;
+    let row_alpha = |y: usize| {
+        (0..540)
+            .map(|x| raw[(y * 540 + x) * 4 + 3] as u32)
+            .sum::<u32>()
+    };
+    let lowest = (0..960).rev().find(|&y| row_alpha(y) > 0).unwrap();
+    let highest = (0..960).find(|&y| row_alpha(y) > 0).unwrap();
+    assert!(
+        lowest as f32 <= 960.0 * 0.78,
+        "caption reaches row {lowest}"
+    );
+    // Wrapped into several lines: the drawn block is far taller than one line of 22%/1.25.
+    assert!(
+        lowest - highest > 150,
+        "text was not wrapped: {highest}..{lowest}"
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}

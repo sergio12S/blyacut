@@ -99,6 +99,26 @@ fn bottom() -> String {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ExtractAudio {
+    clip_id: String,
+    output_path: PathBuf,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Captions {
+    #[serde(default)]
+    captions: Vec<blyacut_core::captions::Caption>,
+    srt: Option<String>,
+    output_dir: PathBuf,
+    #[serde(default = "bottom")]
+    position: String,
+    #[serde(default = "white")]
+    text_color: String,
+    #[serde(default = "plate")]
+    style: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Freeze {
     clip_id: String,
     at_ms: u64,
@@ -358,6 +378,64 @@ impl Gateway {
                 value["path"] = json!(path);
                 value["asset_id"] = json!(asset_id);
                 value["clip_id"] = json!(clip_id);
+                Ok(value)
+            }
+            "extract_audio" => {
+                let a: ExtractAudio = parse(args)?;
+                let wav = self.new_file(&a.output_path, "wav")?;
+                let s = self.session.snapshot()?;
+                let clip = s
+                    .project
+                    .tracks
+                    .iter()
+                    .flat_map(|t| &t.clips)
+                    .find(|c| c.id == a.clip_id)
+                    .ok_or("Unknown clip")?;
+                if clip.is_retimed() {
+                    return Err("Extract audio from a normal-speed, forward clip".into());
+                }
+                let asset = s
+                    .project
+                    .assets
+                    .iter()
+                    .find(|x| x.id == clip.asset_id)
+                    .ok_or("Unknown asset")?;
+                blyacut_engine::studio::extract_audio(
+                    asset,
+                    clip.source_start_ms,
+                    clip.span(),
+                    &wav,
+                )?;
+                Ok(json!({
+                    "path": wav,
+                    "format": "WAV PCM 16-bit, 16 kHz, mono",
+                    "timeline_offset_ms": clip.position_ms,
+                    "duration_ms": clip.duration(),
+                    "note": "WAV time 0 is timeline_offset_ms; add it to your transcript timings before add_captions"
+                }))
+            }
+            "add_captions" => {
+                let a: Captions = parse(args)?;
+                let dir = self.input(&a.output_dir)?;
+                if !dir.is_dir() {
+                    return Err(
+                        "output_dir must be an existing folder inside the authorized folder".into(),
+                    );
+                }
+                let captions = match (a.srt, a.captions.is_empty()) {
+                    (Some(srt), true) => blyacut_core::captions::parse_srt(&srt)?,
+                    (None, false) => a.captions,
+                    _ => return Err("Pass either captions or srt".into()),
+                };
+                let (snapshot, track_id) = self.session.add_captions(
+                    captions,
+                    &a.position,
+                    blyacut_engine::studio::parse_hex(&a.text_color)?,
+                    a.style.parse()?,
+                    &dir,
+                )?;
+                let mut value = Self::with_warnings(snapshot);
+                value["track_id"] = json!(track_id);
                 Ok(value)
             }
             "freeze_frame" => {

@@ -257,6 +257,24 @@ export const useEditor = defineStore("editor", () => {
       dirty.value = true;
     });
   }
+  /** Lay a SubRip file on a new Subtitles track (text written by a person or an agent). */
+  async function importSubtitles(
+    position: "top" | "center" | "bottom",
+    style: "box" | "outline" | "shadow",
+  ) {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Субтитры SRT", extensions: ["srt"] }],
+    });
+    if (typeof path !== "string") return;
+    playing.value = false;
+    await guard(async () => {
+      accept(
+        await invoke<Snapshot>("import_subtitles", { path, position, style }),
+      );
+      dirty.value = true;
+    });
+  }
   async function setSettings(settings: Settings) {
     await edit({ operation: "set_settings", settings });
   }
@@ -474,6 +492,7 @@ export const useEditor = defineStore("editor", () => {
     setTransition,
     setSettings,
     setSpeed,
+    importSubtitles,
     freezeFrame,
     draftTransform,
     addVideoTrack,

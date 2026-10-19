@@ -54,6 +54,14 @@ In the desktop app, tick **Autonomous agent** before **Enable agent access…** 
 
 Title cards use a system TrueType font (Arial on macOS, DejaVu/Noto on Linux; override with `BLYACUT_FONT`), because FFmpeg builds without libfreetype have no text filters.
 
+## Subtitles: the agent transcribes, BlyaCut lays them out
+
+BlyaCut embeds no speech model. An agent with its own speech-to-text:
+
+1. `extract_audio {clip_id, output_path: ".../talk.wav"}` → 16 kHz mono WAV; `timeline_offset_ms` says where WAV time 0 sits on the timeline.
+2. Transcribe it with your own model; add `timeline_offset_ms` to the timings.
+3. `add_captions {srt: "...", output_dir: ".../subs"}` or `{captions: [{start_ms, end_ms, text}], ...}` → legible captions (box plate by default, vertical-safe positions, automatic wrapping) on a new Subtitles overlay track in one step.
+
 ## Available tools
 
 | Tool | Behavior |
@@ -123,4 +131,4 @@ This scripted client uses the official Python MCP SDK, not a built-in LLM: it in
 
 The live desktop path was tested with official SDK **1.30.0** and its 2025-11-25 protocol lifecycle. The bridge also negotiates 2025-06-18. It does not implement the newer 2026 protocol revision or claim compatibility with every MCP host. Sources: [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle), [official Python SDK](https://github.com/modelcontextprotocol/python-sdk).
 
-See [effect recipes](effects.md) for schemas, parameter bounds, hot reloading and preview/export limits. There are currently 18 discoverable tools (incl. `freeze_frame`). Edits include `set_keyframes` (overlay animation), `set_ducking` (music under voice), `set_speed` (0.25×–4×, reverse), `set_transform` for overlay clips, `set_transition` (20 kinds, handles required) and `set_settings` (format, fps, crop-to-fill); `import_media` also accepts PNG/JPEG/WebP stills.
+See [effect recipes](effects.md) for schemas, parameter bounds, hot reloading and preview/export limits. There are currently 20 discoverable tools (incl. `freeze_frame`, `extract_audio`, `add_captions`). Edits include `set_keyframes` (overlay animation), `set_ducking` (music under voice), `set_speed` (0.25×–4×, reverse), `set_transform` for overlay clips, `set_transition` (20 kinds, handles required) and `set_settings` (format, fps, crop-to-fill); `import_media` also accepts PNG/JPEG/WebP stills.

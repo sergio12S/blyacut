@@ -117,7 +117,10 @@ export const VIDEO_EFFECTS = new Set<EffectStep["effect"]>([
 ]);
 /** Default track names are stored in English in projects; show them localized. */
 export const trackName = (name: string) =>
-  name.replace(/^Video (\d+)$/, "Видео $1").replace(/^Audio (\d+)$/, "Звук $1");
+  name
+    .replace(/^Video (\d+)$/, "Видео $1")
+    .replace(/^Audio (\d+)$/, "Звук $1")
+    .replace(/^Subtitles$/, "Субтитры");
 /** The first video track is the magnetic main track; later video tracks are overlays. */
 export const isOverlayTrack = (project: Project | undefined, track: Track) =>
   track.kind === "video" &&

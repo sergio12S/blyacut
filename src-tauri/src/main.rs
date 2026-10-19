@@ -198,6 +198,36 @@ async fn freeze_frame(
     .await
     .map_err(|e| e.to_string())?
 }
+/// Lay an SRT file chosen by the user on a Subtitles track (images in the app data folder).
+#[tauri::command]
+async fn import_subtitles(
+    app: tauri::AppHandle,
+    s: State<'_, Desktop>,
+    path: PathBuf,
+    position: String,
+    style: String,
+) -> Result<Snapshot> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("captions");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let session = s.session.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+        if meta.len() > 2 * 1024 * 1024 {
+            return Err("Subtitle file exceeds 2 MiB".to_string());
+        }
+        let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let captions = blyacut_core::captions::parse_srt(&text)?;
+        session
+            .add_captions(captions, &position, [255, 255, 255], style.parse()?, &dir)
+            .map(|(snapshot, _)| snapshot)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 #[tauri::command]
 fn builtin_effect_recipes() -> Vec<blyacut_core::effects::EffectRecipe> {
     blyacut_core::effects::builtin_recipes()
@@ -289,6 +319,7 @@ fn main() {
         create_title_card,
         create_text_overlay,
         freeze_frame,
+        import_subtitles,
         get_proposal,
         resolve_proposal,
         start_agent,
@@ -313,6 +344,7 @@ fn main() {
         create_title_card,
         create_text_overlay,
         freeze_frame,
+        import_subtitles,
         get_proposal,
         resolve_proposal
     ]);

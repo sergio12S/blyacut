@@ -44,7 +44,7 @@ In the **Agent** sidebar tab, **Enable agent access…** authorizes one media/ex
 
 Agents can also work with no app open: `blyacut-mcp --headless FOLDER --autonomous` is a complete local studio (import, title cards, edits, effects, frame previews, export with loudness report, save/open). See [MCP setup, headless studio and reproducible demo](docs/mcp.md).
 
-No natural-language model is embedded yet. Transcription, subtitles, automatic ducking, pause detection and generative video/music remain future work.
+BlyaCut embeds no AI model by design: the connected agent brings its own. For subtitles the agent calls `extract_audio` (16 kHz mono WAV of a clip), transcribes it with its own speech-to-text, and sends the timed text back with `add_captions` (list or SRT), which lays legible captions on a Subtitles track. People can import an `.srt` file from the Titles tab. Pause detection and generative video/music are not implemented.
 
 ## Effect recipes and interface design
 
@@ -78,6 +78,6 @@ Integration tests require real FFmpeg/FFprobe. They synthesize fixtures; verify 
 - Output uses the project format (default 1080p30; presets in the export dialog), letterboxing or crop-to-fill, CPU `libx264` CRF 20 and AAC stereo. No hardware encoding, proxies, frame cache, multiband EQ or automatic ducking yet. The monitor shows transitions as a hard cut; export and `preview_frame` outside the transition are exact.
 - Clips normalize independently before concatenation. Non-frame-aligned cuts round to output frames; many cuts can accumulate duration differences. Temporary render space includes normalized segments, a base video and final mix. Cancellation cleans scratch output.
 - MCP currently uses macOS/Linux Unix IPC and pinned 2025-11-25 / 2025-06-18 stdio protocols. It requires opt-in access and a separately built bridge binary. Other MCP protocol revisions/hosts and Windows named pipes are not verified.
-- whisper.cpp, subtitles, silence removal, generative media providers, SQLite metadata indexing and public-release packaging are not implemented.
+- Built-in speech recognition (by design, agents transcribe), silence removal, generative media providers, SQLite metadata indexing and public-release packaging are not implemented.
 
 [Architecture](docs/architecture.md) · [MCP integration](docs/mcp.md) · [Licenses and distribution](docs/licensing.md) · [Contributing](CONTRIBUTING.md)

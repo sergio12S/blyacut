@@ -389,6 +389,128 @@ fn agent_retimes_and_freezes() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn agent_transcribes_with_its_own_model_and_lays_captions() {
+    let dir = std::env::temp_dir()
+        .join(format!("blyacut-captions-{}", blyacut_core::id()))
+        .canonicalize_or_create();
+    let p = |name: &str| dir.join(name).to_string_lossy().to_string();
+    std::fs::create_dir(dir.join("subs")).unwrap();
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=gray:s=320x180:r=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=300",
+        "-t",
+        "5",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        &p("talk.mp4"),
+    ]);
+    let mut a = Agent::start(&dir, true);
+    let imported = a.ok("import_media", json!({"path": p("talk.mp4")}));
+    let asset = imported["project"]["assets"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let vt = imported["project"]["tracks"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let rev = imported["revision"].as_u64().unwrap();
+    a.ok("apply_edits", json!({"expected_revision": rev, "edits": [{"operation":"append","asset_id":asset,"clip_id":"talk","track_id":vt}]}));
+
+    // 1. BlyaCut hands the agent speech audio; the agent transcribes it itself.
+    let audio = a.ok(
+        "extract_audio",
+        json!({"clip_id":"talk","output_path":p("talk.wav")}),
+    );
+    assert_eq!(audio["timeline_offset_ms"], 0);
+    let wav = blyacut_engine::probe(std::path::Path::new(&p("talk.wav"))).unwrap();
+    assert!(wav.has_audio && wav.duration_ms.abs_diff(5000) < 100);
+    let info = std::process::Command::new(blyacut_engine::binary("ffprobe"))
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=sample_rate,channels",
+            "-of",
+            "csv=p=0",
+            &p("talk.wav"),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&info.stdout).trim(), "16000,1");
+
+    // 2. The agent's transcript comes back as SRT and becomes legible subtitles.
+    let srt = "1\n00:00:00,500 --> 00:00:01,800\nПривет, это агент\n\n2\n00:00:02,000 --> 00:00:03,000\nОн сам расшифровал речь\n\n3\n00:00:03,200 --> 00:00:04,500\nи наложил субтитры\n";
+    let done = a.ok("add_captions", json!({"srt": srt, "output_dir": p("subs")}));
+    let track_id = done["track_id"].as_str().unwrap();
+    let track = done["project"]["tracks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == track_id)
+        .unwrap()
+        .clone();
+    assert_eq!(track["name"], "Subtitles");
+    let clips = track["clips"].as_array().unwrap();
+    let placed: Vec<(u64, u64)> = clips
+        .iter()
+        .map(|c| {
+            (
+                c["position_ms"].as_u64().unwrap(),
+                c["source_end_ms"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(placed, vec![(500, 1300), (2000, 1000), (3200, 1300)]);
+    assert!(
+        done["warnings"].as_array().unwrap().is_empty(),
+        "{}",
+        done["warnings"]
+    );
+
+    // 3. Visible only while a caption is on: the plate darkens the lower frame.
+    let mut lower = |name: &str, at: u64| {
+        a.ok(
+            "preview_frame",
+            json!({"time_ms": at, "output_path": p(name), "width": 320}),
+        );
+        let out = std::process::Command::new(blyacut_engine::binary("ffmpeg"))
+            .args([
+                "-v",
+                "error",
+                "-i",
+                &p(name),
+                "-vf",
+                "crop=iw:ih*0.3:0:ih*0.65,format=gray",
+                "-f",
+                "rawvideo",
+                "pipe:1",
+            ])
+            .output()
+            .unwrap();
+        // White glyph pixels in the lower third (the gray footage has none).
+        out.stdout.iter().filter(|v| **v > 220).count()
+    };
+    let (with, without) = (lower("on.png", 1000), lower("off.png", 1900));
+    assert!(
+        with > 200 && without == 0,
+        "caption glyphs only while on: {with} vs {without}"
+    );
+    assert!(a.call("add_captions", json!({"captions":[{"start_ms":0,"end_ms":1000,"text":"a"},{"start_ms":500,"end_ms":900,"text":"b"}],"output_dir":p("subs")})).unwrap_err().contains("overlaps"));
+    drop(a.input);
+    assert!(a.child.wait().unwrap().success());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 trait Create {
     fn canonicalize_or_create(self) -> std::path::PathBuf;
 }

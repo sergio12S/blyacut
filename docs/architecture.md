@@ -42,7 +42,7 @@ The monitor is a replaceable UI component. It resolves the active clip and maps 
 
 ## Delivery phases
 
-Phase 1 established the editing slice; Phase 2 now adds independent audio composition and a secure MCP bridge into the live editor. Natural-language interpretation remains external. Phase 3 will add model-configured whisper.cpp jobs and transcript-derived commands. Phase 4 can extend video composition/effects after preview/export parity and synchronization improve.
+Phase 1 established the editing slice; Phase 2 now adds independent audio composition and a secure MCP bridge into the live editor. Natural-language interpretation remains external. Phase 3 keeps ML outside the editor: agents receive media through MCP (`extract_audio`) and return structured results (`add_captions`), so BlyaCut embeds no models. Phase 4 can extend video composition/effects after preview/export parity and synchronization improve.
 
 ## Data-only effects
 

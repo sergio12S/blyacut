@@ -1,4 +1,5 @@
 //! Framework-independent, transactional editing model. All times are integer milliseconds.
+pub mod captions;
 pub mod effects;
 use effects::EffectRecipe;
 use serde::{Deserialize, Serialize};
@@ -1002,6 +1003,14 @@ impl Editor {
         self.undo.clear();
         self.redo.clear();
         self.revision += 1;
+        Ok(())
+    }
+    /// Add several assets as one history step.
+    pub fn import_many(&mut self, assets: Vec<Asset>) -> Result<()> {
+        let mut next = self.project.clone();
+        next.assets.extend(assets);
+        next.validate()?;
+        self.commit(next);
         Ok(())
     }
     pub fn import(&mut self, asset: Asset) -> Result<()> {

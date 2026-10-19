@@ -176,6 +176,42 @@ fn main_frame(project: &Project, time_ms: u64, out: &Path, width: u32) -> Result
     ffmpeg(&args).map(|_| ())
 }
 
+/// Speech-ready audio of a source range (16 kHz mono PCM WAV) for an agent's own transcription.
+pub fn extract_audio(
+    asset: &blyacut_core::Asset,
+    start_ms: u64,
+    span_ms: u64,
+    out: &Path,
+) -> Result<()> {
+    new_file(out, "wav")?;
+    if !asset.has_audio {
+        return Err("This media has no sound".into());
+    }
+    ffmpeg(&[
+        "-nostdin".into(),
+        "-v".into(),
+        "error".into(),
+        "-n".into(),
+        "-protocol_whitelist".into(),
+        "file,pipe".into(),
+        "-ss".into(),
+        sec(start_ms),
+        "-t".into(),
+        sec(span_ms),
+        "-i".into(),
+        asset.path.to_string_lossy().into(),
+        "-vn".into(),
+        "-ac".into(),
+        "1".into(),
+        "-ar".into(),
+        "16000".into(),
+        "-c:a".into(),
+        "pcm_s16le".into(),
+        out.to_string_lossy().into(),
+    ])
+    .map(|_| ())
+}
+
 /// The exact source frame at `source_ms`, as a new PNG (no effects; the caller copies them).
 pub fn extract_frame(asset: &blyacut_core::Asset, source_ms: u64, out: &Path) -> Result<()> {
     new_file(out, "png")?;

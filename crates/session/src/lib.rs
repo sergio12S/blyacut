@@ -266,6 +266,71 @@ impl Session {
         ]);
         Ok((self.apply(&edits, imported.revision)?, freeze))
     }
+    /// Render timed captions as text images in `dir` and lay them on a new overlay track
+    /// named "Subtitles": one import step plus one edit step. Returns the track ID.
+    pub fn add_captions(
+        &self,
+        mut captions: Vec<blyacut_core::captions::Caption>,
+        position: &str,
+        text_rgb: [u8; 3],
+        backing: blyacut_engine::studio::Backing,
+        dir: &Path,
+    ) -> Result<(Snapshot, String)> {
+        blyacut_core::captions::validate(&mut captions)?;
+        let snapshot = self.snapshot()?;
+        let center_y = blyacut_engine::studio::text_position(&snapshot.project, position)?;
+        let batch = id();
+        let mut assets = vec![];
+        for (i, caption) in captions.iter().enumerate() {
+            let png = dir.join(format!("caption-{batch}-{i:03}.png"));
+            blyacut_engine::studio::text_overlay(
+                &snapshot.project,
+                caption.text.trim(),
+                text_rgb,
+                center_y,
+                backing,
+                &png,
+            )?;
+            assets.push(blyacut_engine::probe(&png)?);
+        }
+        let ids: Vec<String> = assets.iter().map(|a| a.id.clone()).collect();
+        let imported = {
+            let mut e = self.editor()?;
+            if e.revision != snapshot.revision {
+                return Err(stale(snapshot.revision, e.revision));
+            }
+            e.import_many(assets)?;
+            Self::snapshot_of(&e)
+        };
+        let imported = self.changed(imported);
+        let track_id = id();
+        let mut edits = vec![Edit::AddTrack {
+            track_id: track_id.clone(),
+            name: "Subtitles".into(),
+            kind: blyacut_core::TrackKind::Video,
+        }];
+        for (caption, asset_id) in captions.iter().zip(ids) {
+            let clip_id = id();
+            edits.extend([
+                Edit::Append {
+                    asset_id,
+                    clip_id: clip_id.clone(),
+                    track_id: track_id.clone(),
+                },
+                Edit::TrimClip {
+                    clip_id: clip_id.clone(),
+                    start_ms: 0,
+                    end_ms: caption.end_ms - caption.start_ms,
+                },
+                Edit::MoveClip {
+                    clip_id,
+                    track_id: track_id.clone(),
+                    position_ms: caption.start_ms,
+                },
+            ]);
+        }
+        Ok((self.apply(&edits, imported.revision)?, track_id))
+    }
     pub fn render_job(&self) -> Result<Option<RenderJob>> {
         Ok(self
             .job

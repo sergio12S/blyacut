@@ -25,7 +25,7 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 | Speed, reverse, freeze frame, speed curves | ✔ | ✔ 0.25×–4×, reverse, freeze frame | speed curves |
 | Keyframes (position/scale/opacity/volume) | ✔ | ✔ overlays: position/scale/opacity + presets | volume keyframes, easing |
 | Crop/scale/position | ✔ | ✔ for overlays; crop-to-fill for the frame | per-clip crop |
-| Auto subtitles (speech-to-text) | ✔ | Planned (whisper.cpp) | P2 |
+| Auto subtitles (speech-to-text) | ✔ built-in | ✔ agent-driven: extract_audio → agent transcribes → add_captions; SRT import | caption styling presets |
 | Audio ducking | ✔ | ✔ sidechain, chosen depth | — |
 | Chroma key | ✔ | — | P3 |
 | Motion / camera tracking, AI generation | ✔ | — | P3 / out of scope locally |
@@ -38,7 +38,7 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 
 **Phase 2 — composition (done: overlay tracks, PiP, stills, legible text over video, 20 transitions, format presets incl. vertical crop-to-fill).** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
 
-**Phase 3 — motion and time (started: speed, reverse, freeze frame).** Speed/reverse/freeze, keyframes, ducking, whisper.cpp subtitles, timeline thumbnails and waveforms.
+**Phase 3 — motion and time (started: speed, reverse, freeze frame).** Speed/reverse/freeze, keyframes, ducking and agent-driven subtitles are done; timeline thumbnails and waveforms remain.
 
 Each phase keeps the rule that UI and agents share one Rust edit model: every new capability is an `Edit` operation and an MCP tool at the same time.
 

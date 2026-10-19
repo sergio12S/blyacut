@@ -173,6 +173,13 @@ function createTitle() {
       >
         {{ overlay ? "Наложить текст" : "Создать титр" }}
       </button>
+      <button
+        :disabled="e.busy"
+        title="Готовые субтитры в формате SRT — например, расшифровка от агента"
+        @click="e.importSubtitles(position, backing)"
+      >
+        Импорт субтитров (SRT)…
+      </button>
       <p class="hint">
         {{
           overlay

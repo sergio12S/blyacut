@@ -330,3 +330,20 @@ fn warnings_explain_black_tails_and_gaps() {
     assert_eq!(w.len(), 1);
     assert!(w[0].contains("Audio runs 3.00 s past"), "{w:?}");
 }
+
+#[test]
+fn srt_parses_and_captions_validate() {
+    use blyacut_core::captions::*;
+    let srt = "\u{feff}1\r\n00:00:01,000 --> 00:00:02,500\r\nПривет\r\nмир\r\n\r\n2\n00:00:03.2 --> 00:00:04,000 X1:0\nSecond\n";
+    let mut c = parse_srt(srt).unwrap();
+    assert_eq!(c.len(), 2);
+    assert_eq!(
+        (c[0].start_ms, c[0].end_ms, c[0].text.as_str()),
+        (1000, 2500, "Привет\nмир")
+    );
+    assert_eq!((c[1].start_ms, c[1].end_ms), (3200, 4000));
+    validate(&mut c).unwrap();
+    c[1].start_ms = 2000;
+    assert!(validate(&mut c).is_err(), "overlap");
+    assert!(parse_srt("nothing here").is_err());
+}

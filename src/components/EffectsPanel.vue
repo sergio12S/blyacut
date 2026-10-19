@@ -4,6 +4,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEditor } from "../stores/editor";
 import type { EffectCatalog, EffectRecipe, EffectStep } from "../types";
+import { RECIPE_MIME } from "../types";
 import {
   EFFECTS_CATALOG,
   formatEffectStep,
@@ -13,6 +14,14 @@ import {
 } from "../effectsCatalog";
 
 const e = useEditor();
+/** "library": preset gallery and custom builder; "chain": the selected clip's effect stack. */
+const props = withDefaults(defineProps<{ section?: "chain" | "library" }>(), {
+  section: "chain",
+});
+function dragRecipe(event: DragEvent, recipe: EffectRecipe) {
+  event.dataTransfer?.setData(RECIPE_MIME, JSON.stringify(recipe));
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+}
 
 // Single source of truth: `blyacut_core::effects::builtin_recipes` (Rust).
 const builtinRecipes = ref<EffectRecipe[]>([]);
@@ -91,12 +100,7 @@ function getRecipeIncompatibilityReason(recipe: EffectRecipe): string | null {
 function applyRecipe(recipe: EffectRecipe) {
   const c = currentClip.value;
   if (!c || getRecipeIncompatibilityReason(recipe)) return;
-
-  void e.edit({
-    operation: "set_effects",
-    clip_id: c.id,
-    effects: [...c.effects, recipe],
-  });
+  void e.applyRecipe(c.id, recipe);
 }
 
 function removeRecipe(index: number) {
@@ -202,7 +206,7 @@ async function reloadFolder() {
 <template>
   <section class="effects-panel">
     <!-- Заголовок панели -->
-    <div class="panel-header-row">
+    <div v-if="props.section === 'chain'" class="panel-header-row">
       <div class="header-left">
         <h4 class="title">
           Эффекты
@@ -222,7 +226,7 @@ async function reloadFolder() {
     </div>
 
     <!-- 1. ЦЕПОЧКА ЭФФЕКТОВ ТЕКУЩЕГО КЛИПА -->
-    <div class="section-block">
+    <div v-if="props.section === 'chain'" class="section-block">
       <div class="section-title">Цепочка на клипе</div>
 
       <div v-if="!currentClip" class="empty-hint">
@@ -279,7 +283,7 @@ async function reloadFolder() {
     </div>
 
     <!-- 2. ГАЛЕРЕЯ ВСТРОЕННЫХ ПРЕСЕТОВ -->
-    <div class="section-block">
+    <div v-if="props.section === 'library'" class="section-block">
       <div class="section-title-row">
         <div class="section-title">Галерея пресетов</div>
         <div class="tabs-group">
@@ -327,13 +331,17 @@ async function reloadFolder() {
           :key="recipe.id"
           class="preset-card"
           :class="{
-            disabled: !currentClip || !!getRecipeIncompatibilityReason(recipe),
+            disabled: !!currentClip && !!getRecipeIncompatibilityReason(recipe),
           }"
           :title="
-            getRecipeIncompatibilityReason(recipe) ??
-            'Нажмите, чтобы добавить эффект'
+            currentClip
+              ? (getRecipeIncompatibilityReason(recipe) ??
+                'Нажмите или перетащите на клип')
+              : 'Перетащите на клип на таймлайне'
           "
           tabindex="0"
+          draggable="true"
+          @dragstart="dragRecipe($event, recipe)"
           @click="applyRecipe(recipe)"
           @keydown.enter="applyRecipe(recipe)"
         >
@@ -353,7 +361,10 @@ async function reloadFolder() {
     </div>
 
     <!-- 3. СВОЙ ЭФФЕКТ (КОНСТРУКТОР ОДИНОЧНОГО ШАГА) -->
-    <details class="section-block custom-effect-details">
+    <details
+      v-if="props.section === 'library'"
+      class="section-block custom-effect-details"
+    >
       <summary class="section-title summary-toggle">
         <span>Создать свой эффект</span>
       </summary>
@@ -435,7 +446,10 @@ async function reloadFolder() {
     </details>
 
     <!-- 4. ЗАГРУЗКА ПАПКИ С ДИСКА (LOAD RECIPE FOLDER) -->
-    <details class="section-block folder-details">
+    <details
+      v-if="props.section === 'library'"
+      class="section-block folder-details"
+    >
       <summary class="section-title summary-toggle">
         <span>Пользовательская папка с JSON-рецептами</span>
       </summary>
@@ -716,7 +730,7 @@ async function reloadFolder() {
 /* Сетка пресетов 2 колонки */
 .presets-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   max-height: 260px;
   overflow-y: auto;

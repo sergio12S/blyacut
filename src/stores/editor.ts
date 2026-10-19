@@ -2,7 +2,8 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import type { Project, Edit, Clip, Snapshot } from "../types";
+import type { Project, Edit, Clip, Snapshot, EffectRecipe } from "../types";
+import { isVideoStep } from "../types";
 export const useEditor = defineStore("editor", () => {
   const project = ref<Project>();
   const selected = ref("");
@@ -122,7 +123,7 @@ export const useEditor = defineStore("editor", () => {
     await edit({
       operation: "add_track",
       track_id: crypto.randomUUID(),
-      name: `Audio ${(project.value?.tracks.filter((t) => t.kind === "audio").length ?? 0) + 1}`,
+      name: `Звук ${(project.value?.tracks.filter((t) => t.kind === "audio").length ?? 0) + 1}`,
       kind: "audio",
     });
   }
@@ -159,6 +160,48 @@ export const useEditor = defineStore("editor", () => {
         position_ms: Math.round(playhead.value),
         new_clip_id: crypto.randomUUID(),
       });
+  }
+  /** Append a recipe to a clip's chain; video looks are refused on audio-only tracks. */
+  async function applyRecipe(clipId: string, recipe: EffectRecipe) {
+    const track = project.value?.tracks.find((t) =>
+      t.clips.some((c) => c.id === clipId),
+    );
+    const clip = track?.clips.find((c) => c.id === clipId);
+    if (!track || !clip) return;
+    if (track.kind === "audio" && recipe.steps.some(isVideoStep)) {
+      error.value = `«${recipe.name}» — видеоэффект, его нельзя применить к звуковой дорожке`;
+      return;
+    }
+    selected.value = clipId;
+    await edit({
+      operation: "set_effects",
+      clip_id: clipId,
+      effects: [...clip.effects, recipe],
+    });
+  }
+  /** Render a title card into the app data folder, import it and put it at the end of the video track. */
+  async function createTitle(
+    text: string,
+    textColor: string,
+    backgroundColor: string,
+    durationMs: number,
+  ) {
+    playing.value = false;
+    const before = new Set(project.value?.assets.map((a) => a.id));
+    await guard(async () => {
+      accept(
+        await invoke<Snapshot>("create_title_card", {
+          text,
+          textColor,
+          backgroundColor,
+          durationMs,
+        }),
+      );
+      dirty.value = true;
+    });
+    // Outside guard: a nested guard would silently skip while busy.
+    const asset = project.value?.assets.find((a) => !before.has(a.id));
+    if (asset) await append(asset.id);
   }
   async function remove() {
     if (selection.value)
@@ -260,5 +303,7 @@ export const useEditor = defineStore("editor", () => {
     seek,
     step,
     select,
+    applyRecipe,
+    createTitle,
   };
 });

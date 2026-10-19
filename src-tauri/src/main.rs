@@ -105,6 +105,38 @@ async fn load_effect_recipes(root: PathBuf) -> Result<blyacut_session::effects::
         .await
         .map_err(|e| e.to_string())?
 }
+/// Title cards live in the app data folder; the project references them like any media.
+#[tauri::command]
+async fn create_title_card(
+    app: tauri::AppHandle,
+    s: State<'_, Desktop>,
+    text: String,
+    text_color: String,
+    background_color: String,
+    duration_ms: u64,
+) -> Result<Snapshot> {
+    use blyacut_engine::studio::{parse_hex, title_card, TitleStyle};
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("titles");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let style = TitleStyle {
+        text_rgb: parse_hex(&text_color)?,
+        background_rgb: parse_hex(&background_color)?,
+    };
+    let session = s.session.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let snapshot = session.snapshot()?;
+        let path = dir.join(format!("title-{}.mp4", blyacut_core::id()));
+        title_card(&snapshot.project, &text, duration_ms, &style, &path)?;
+        let asset = blyacut_engine::probe(&path)?;
+        session.import_at(asset, snapshot.revision)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 #[tauri::command]
 fn builtin_effect_recipes() -> Vec<blyacut_core::effects::EffectRecipe> {
     blyacut_core::effects::builtin_recipes()
@@ -193,6 +225,7 @@ fn main() {
         cancel_export,
         load_effect_recipes,
         builtin_effect_recipes,
+        create_title_card,
         get_proposal,
         resolve_proposal,
         start_agent,
@@ -214,6 +247,7 @@ fn main() {
         cancel_export,
         load_effect_recipes,
         builtin_effect_recipes,
+        create_title_card,
         get_proposal,
         resolve_proposal
     ]);

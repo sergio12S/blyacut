@@ -124,7 +124,7 @@ onUnmounted(() => {
 <template>
   <section class="preview">
     <div class="panel-title">
-      <span>PROGRAM MONITOR</span
+      <span>МОНИТОР</span
       ><span
         >{{ e.project?.settings.width }} × {{ e.project?.settings.height }} ·
         {{ e.project?.settings.fps_num }} fps</span
@@ -140,7 +140,7 @@ onUnmounted(() => {
       @loadedmetadata="sync(true)"
       @error="
         previewError =
-          'An audio asset cannot be decoded by this WebView. Try WAV or AAC.'
+          'Этот звук WebView не может воспроизвести. Попробуйте WAV или AAC.'
       "
     />
     <div class="screen">
@@ -155,7 +155,7 @@ onUnmounted(() => {
         @loadedmetadata="sync(true)"
         @error="
           previewError =
-            'This media cannot be decoded by the system WebView. Try an H.264 MP4.'
+            'Это видео WebView не может воспроизвести. Попробуйте H.264 MP4 (экспорт всё равно сработает).'
         "
       />
       <div
@@ -168,13 +168,13 @@ onUnmounted(() => {
       <div v-else-if="!source" class="empty">
         <div class="empty-symbol">▷</div>
         <strong>{{
-          e.audioClips.length ? "Audio composition" : "Your story starts here"
+          e.audioClips.length ? "Только звук" : "Здесь будет ваше видео"
         }}</strong>
         <p>
           {{
             e.audioClips.length
-              ? "Playback includes independent audio tracks."
-              : "Import media and add it to the timeline."
+              ? "Воспроизведение включает звуковые дорожки."
+              : "Импортируйте медиа или создайте титр в библиотеке слева."
           }}
         </p>
       </div>
@@ -183,14 +183,14 @@ onUnmounted(() => {
     <div class="transport">
       <span class="mono">{{ time(e.playhead) }}</span>
       <div>
-        <button title="Previous frame (←)" @click="e.step(-1)">❮</button
+        <button title="Кадр назад (←)" @click="e.step(-1)">❮</button
         ><button
           class="play"
           :disabled="!e.duration"
           @click="e.playing = !e.playing"
         >
           {{ e.playing ? "Ⅱ" : "▶" }}</button
-        ><button title="Next frame (→)" @click="e.step(1)">❯</button>
+        ><button title="Кадр вперёд (→)" @click="e.step(1)">❯</button>
       </div>
       <span class="mono muted">{{ time(e.duration) }}</span>
     </div>

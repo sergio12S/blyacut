@@ -73,6 +73,11 @@ export const VIDEO_EFFECTS = new Set<EffectStep["effect"]>([
   "flip",
   "edge_detect",
 ]);
+/** Default track names are stored in English in projects; show them localized. */
+export const trackName = (name: string) =>
+  name.replace(/^Video (\d+)$/, "Видео $1").replace(/^Audio (\d+)$/, "Звук $1");
+/** Drag-and-drop payload: a JSON EffectRecipe dropped onto a timeline clip. */
+export const RECIPE_MIME = "application/x-blyacut-recipe";
 export const isVideoStep = (s: EffectStep) => VIDEO_EFFECTS.has(s.effect);
 export interface EffectRecipe {
   version: 1;

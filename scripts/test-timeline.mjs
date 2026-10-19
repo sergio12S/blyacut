@@ -120,7 +120,7 @@ try {
       0,
     ));
   test("Same-track overlap is explained before drop", () =>
-    assert.match(plan("v2", "move", -1000, "v").error, /overlap/));
+    assert.match(plan("v2", "move", -1000, "v").error, /пересека/));
   test("Audio moves between tracks without rippling its source", () => {
     const p = plan("a1", "move", 2500, "b");
     assert.equal(p.edits[0].track_id, "b");

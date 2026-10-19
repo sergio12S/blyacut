@@ -37,7 +37,7 @@ async function enable() {
     const root = await open({
       directory: true,
       multiple: false,
-      title: "Choose the folder agents may import from and export into",
+      title: "Папка, откуда агент берёт медиа и куда экспортирует",
     });
     if (typeof root === "string")
       connection.value = await invoke("start_agent", {
@@ -65,37 +65,37 @@ async function resolve(accept: boolean) {
 </script>
 <template>
   <div class="agent-card">
-    <span class="badge">MCP · LOCAL AGENT</span>
+    <span class="badge">MCP · ЛОКАЛЬНЫЙ АГЕНТ</span>
     <h3>
-      {{ connection ? "Agent access enabled" : "Connect your editing agent" }}
+      {{ connection ? "Агент подключён" : "Подключите агента для монтажа" }}
     </h3>
     <p v-if="!connection">
-      Choose a folder to allow media imports and new exports. External agents
-      can edit this timeline through the MCP bridge.
+      Выберите папку: агент сможет импортировать оттуда медиа и сохранять туда
+      экспорт. Внешние агенты монтируют этот таймлайн через MCP.
     </p>
     <label v-if="!connection" class="autonomy-toggle"
-      ><input v-model="autonomous" type="checkbox" /> Autonomous agent: allow
-      deletions and large batches without my review</label
+      ><input v-model="autonomous" type="checkbox" /> Автономный агент: удалять
+      и делать большие правки без моего подтверждения</label
     >
     <p v-else-if="connection.mode === 'autonomous'" class="autonomy-on">
-      Autonomous: the agent edits without review. Undo still works.
+      Автономный режим: агент монтирует без подтверждений. Отмена (⌘Z) работает.
     </p>
     <details v-else :open="!proposal" class="connection-details">
-      <summary>Connection details</summary>
+      <summary>Подключение</summary>
       <p>
-        Authorized folder:
+        Папка агента:
         <strong class="path-label">{{ connection.allowed_root }}</strong>
       </p>
       <label
-        >Session config<input
+        >Конфиг сессии<input
           readonly
           :value="connection.config_path"
-          aria-label="Agent session config path"
+          aria-label="Путь к конфигу сессии агента"
           @focus="($event.target as HTMLInputElement).select()"
       /></label>
       <p class="muted">
-        Pass this path to blyacut-mcp. Stop access when finished. To work
-        without this app, run blyacut-mcp --headless FOLDER --autonomous.
+        Передайте этот путь в blyacut-mcp. Без приложения агент может работать
+        так: blyacut-mcp --headless ПАПКА --autonomous.
       </p>
     </details>
     <button
@@ -103,15 +103,15 @@ async function resolve(accept: boolean) {
       :disabled="e.busy"
       @click="connection ? disable() : enable()"
     >
-      {{ connection ? "Stop agent access" : "Enable agent access…" }}
+      {{ connection ? "Отключить агента" : "Разрешить доступ агенту…" }}
     </button>
     <div v-if="proposal" class="proposal-card">
-      <strong>Review agent proposal</strong>
+      <strong>Агент предлагает правки</strong>
       <p>
-        {{ proposal.edits.length }} edits · revision {{ proposal.revision }}
+        Правок: {{ proposal.edits.length }} · ревизия {{ proposal.revision }}
       </p>
       <p>
-        Result:
+        Итоговая длина:
         {{
           time(
             Math.max(
@@ -131,16 +131,14 @@ async function resolve(accept: boolean) {
         </li>
       </ol>
       <details>
-        <summary>Technical details</summary>
+        <summary>Технические детали</summary>
         <pre>{{ JSON.stringify(proposal.edits, null, 2) }}</pre>
       </details>
       <button class="primary full" @click="resolve(true)">
-        Apply proposed edits</button
-      ><button class="full" @click="resolve(false)">Reject proposal</button>
+        Применить правки</button
+      ><button class="full" @click="resolve(false)">Отклонить</button>
     </div>
-    <p class="muted">
-      Transcription and media generation are not implemented yet.
-    </p>
+    <p class="muted">Транскрипция и генерация медиа пока не реализованы.</p>
   </div>
 </template>
 <style scoped>

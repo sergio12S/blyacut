@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useEditor } from "../stores/editor";
-import { time, type Clip } from "../types";
+import { RECIPE_MIME, time, trackName, type Clip } from "../types";
 import {
   clipLength,
   clipHitMode,
@@ -17,6 +17,24 @@ const ruler = ref<HTMLElement>();
 const scroller = ref<HTMLElement>();
 const tracksScroller = ref<HTMLElement>();
 const notice = ref("");
+const labels: Record<GesturePlan["label"], string> = {
+  Move: "Перемещение",
+  Insert: "Вставка",
+  "Ripple trim": "Обрезка со сдвигом",
+  Trim: "Обрезка",
+};
+const dropTarget = ref("");
+function acceptRecipe(event: DragEvent, clipId: string) {
+  if (!event.dataTransfer?.types.includes(RECIPE_MIME)) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+  dropTarget.value = clipId;
+}
+function dropRecipe(event: DragEvent, clipId: string) {
+  dropTarget.value = "";
+  const raw = event.dataTransfer?.getData(RECIPE_MIME);
+  if (raw) void e.applyRecipe(clipId, JSON.parse(raw));
+}
 interface Gesture {
   pointerId: number;
   element: HTMLElement;
@@ -184,7 +202,7 @@ function finish(event: PointerEvent) {
     return;
   }
   if (e.busy) {
-    notice.value = "Editor is busy — start the drag again";
+    notice.value = "Редактор занят — начните перетаскивание заново";
     return;
   }
   if (plan?.error) {
@@ -196,7 +214,7 @@ function finish(event: PointerEvent) {
 function cancel() {
   if (gesture.value) {
     clearGesture();
-    notice.value = "Drag cancelled";
+    notice.value = "Перетаскивание отменено";
   }
 }
 function keyboard(event: KeyboardEvent) {
@@ -211,7 +229,7 @@ watch(
   () => {
     if (gesture.value) {
       clearGesture();
-      notice.value = "Project changed — start the drag again";
+      notice.value = "Проект изменился — начните заново";
     }
   },
 );
@@ -237,30 +255,38 @@ function position(c: Clip) {
   >
     <div class="timeline-toolbar">
       <div class="toolbar-group">
-        <strong>Timeline</strong
-        ><span class="badge">{{ e.clips.length }} clips</span
-        ><button :disabled="!e.duration" @click="e.split()">
-          ✂ Split <kbd>S</kbd></button
-        ><button :disabled="!e.selection" @click="e.remove()">
-          Delete <kbd>⌫</kbd></button
-        ><button @click="e.addAudioTrack()">＋ Audio track</button>
+        <button
+          :disabled="!e.duration"
+          title="Разрезать в плейхеде (S)"
+          @click="e.split()"
+        >
+          ✂ Разрезать</button
+        ><button
+          :disabled="!e.selection"
+          title="Удалить (⌫)"
+          @click="e.remove()"
+        >
+          Удалить</button
+        ><button title="Добавить звуковую дорожку" @click="e.addAudioTrack()">
+          ＋ Дорожка
+        </button>
         <button
           class="mode-toggle"
           :aria-pressed="magnetic"
           :disabled="!!gesture"
-          title="Video: insert and close gaps. Turn off to move clips freely."
+          title="Видео склеивается без зазоров. Выключите, чтобы двигать клипы свободно."
           @click="magnetic = !magnetic"
         >
-          Magnetic {{ magnetic ? "on" : "off" }}
+          Магнит
         </button>
         <button
           class="mode-toggle snap-toggle"
           :aria-pressed="snapping"
           :disabled="!!gesture"
-          title="Snap to clip edges and playhead. Hold ⌘ / Ctrl to bypass."
+          title="Прилипание к краям клипов и плейхеду. ⌘ / Ctrl — временно отключить."
           @click="snapping = !snapping"
         >
-          Snap {{ snapping ? "on" : "off" }}
+          Прилипание
         </button>
       </div>
       <label class="zoom"
@@ -270,7 +296,7 @@ function position(c: Clip) {
           type="range"
           min="15"
           max="160"
-          aria-label="Timeline zoom"
+          aria-label="Масштаб таймлайна"
           :disabled="!!gesture"
         />
         +</label
@@ -293,11 +319,9 @@ function position(c: Clip) {
                   .filter((t) => t.kind === track.kind).length
               }}</span
             ><span
-              >{{ track.name
+              >{{ trackName(track.name)
               }}<small>{{
-                track.kind === "audio"
-                  ? "Independent audio"
-                  : "Video + source audio"
+                track.kind === "audio" ? "Звук" : "Видео + звук"
               }}</small></span
             >
           </div>
@@ -328,6 +352,7 @@ function position(c: Clip) {
                   selected: e.selected === c.id,
                   audio: track.kind === 'audio',
                   'drag-origin': gesture?.moved && gesture.clip.id === c.id,
+                  'drop-target': dropTarget === c.id,
                 }"
                 :style="{
                   left: (position(c) / 1000) * zoom + 'px',
@@ -336,7 +361,7 @@ function position(c: Clip) {
                     'px',
                 }"
                 :data-clip-id="c.id"
-                :aria-label="`${e.project?.assets.find((a) => a.id === c.asset_id)?.name}, ${track.name}, ${time(c.position_ms)}, duration ${time(clipLength(c))}`"
+                :aria-label="`${e.project?.assets.find((a) => a.id === c.asset_id)?.name}, ${track.name}, ${time(c.position_ms)}, длительность ${time(clipLength(c))}`"
                 @pointerdown.stop="begin($event, c, track.id)"
                 @click.stop.prevent="
                   (event) => {
@@ -344,16 +369,19 @@ function position(c: Clip) {
                   }
                 "
                 @contextmenu.prevent="e.select(c)"
+                @dragover="acceptRecipe($event, c.id)"
+                @dragleave="dropTarget = ''"
+                @drop.prevent="dropRecipe($event, c.id)"
               >
                 <span
                   class="trim-handle start"
                   data-edge="start"
-                  title="Drag to trim start"
+                  title="Тяните, чтобы обрезать начало"
                 />
                 <span
                   class="trim-handle end"
                   data-edge="end"
-                  title="Drag to trim end"
+                  title="Тяните, чтобы обрезать конец"
                 />
                 <span class="clip-label">{{
                   e.project?.assets.find((a) => a.id === c.asset_id)?.name
@@ -385,8 +413,8 @@ function position(c: Clip) {
               </div>
               <span v-if="!track.clips.length" class="timeline-hint">{{
                 track.kind === "audio"
-                  ? "Add music or voiceover from the media library"
-                  : "Add footage from the media library"
+                  ? "Перетащите сюда музыку или голос из библиотеки"
+                  : "Добавьте видео или титр из библиотеки"
               }}</span>
             </div>
             <div
@@ -404,18 +432,17 @@ function position(c: Clip) {
         </div>
       </div>
     </div>
-    <div class="timeline-footer">
-      <span
-        role="status"
-        :class="{ 'drag-warning': preview?.error || notice }"
-        >{{
-          preview?.error ||
-          notice ||
-          (gesture?.moved
-            ? `${preview?.label ?? "Move"} · release to apply · Esc cancel · ⌘ / Ctrl bypass snap`
-            : "Drag clips to move · drag edges to trim · video trim ripples")
-        }}</span
-      ><span>SPACE play / pause &nbsp; S split &nbsp; ⌘Z undo</span>
+    <div
+      v-if="gesture?.moved || preview?.error || notice"
+      class="timeline-status"
+      role="status"
+      :class="{ 'drag-warning': preview?.error || notice }"
+    >
+      {{
+        preview?.error ||
+        notice ||
+        `${labels[preview?.label ?? "Move"]} · отпустите, чтобы применить · Esc — отмена · ⌘ — без прилипания`
+      }}
     </div>
   </section>
 </template>

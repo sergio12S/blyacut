@@ -983,3 +983,48 @@ body { color: var(--text-primary); }
   .timeline-toolbar .toolbar-group button { padding: 6px 8px; }
   .timeline-footer > span:last-child { display: none; }
 }
+
+/* Phase 1 layout (Filmora-style): one compact header, library tabs, tabbed inspector. */
+.app-header { height: 44px; padding: 0 12px; gap: 12px; justify-content: flex-start; }
+.app-header .brand { font-size: 15px; gap: 8px; letter-spacing: -0.3px; }
+.app-header .brand-icon { font-size: 13px; padding: 3px 5px; border-radius: 5px; }
+.app-header .project-name { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.app-header nav { gap: 6px; }
+.app-header nav button, .history button { padding: 5px 11px; }
+.history { display: flex; gap: 2px; }
+.history button { background: transparent; border-color: transparent; font-size: 15px; padding: 3px 9px; }
+.history button:hover { background: var(--surface-raised); border-color: var(--border-subtle); }
+.export-chip { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b8d493; padding: 3px 4px 3px 10px; border: 1px solid #3c4a2c; border-radius: 999px; background: #1c2318; }
+.export-chip .mono { font-family: var(--font-code); }
+.export-chip button { padding: 2px 8px; font-size: 11px; border-radius: 999px; }
+.export-chip button.ghost { background: transparent; border-color: transparent; }
+.chip-bar { width: 80px; height: 4px; border-radius: 2px; background: #2c3524; overflow: hidden; }
+.chip-bar i { display: block; height: 100%; background: var(--accent); }
+.workspace { grid-template-columns: 264px minmax(320px, 1fr) 300px; }
+.inspector { display: flex; flex-direction: column; border-left: 1px solid var(--border-subtle); }
+.dock-tabs { min-height: 38px; }
+.dock-tabs button { font-size: 12px; padding: 0 4px; }
+.tab-count { margin-left: 5px; padding: 0 5px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; }
+.inspector-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.inspector-body h3 { margin: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-kind { margin: -6px 0 2px; font-size: 11px; color: var(--text-muted); }
+.inspector-body .paired-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.inspector-body .muted { margin: 0; font-size: 11px; }
+.clip-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.inspector-empty { padding: 28px 18px; text-align: center; color: var(--text-secondary); }
+.inspector-empty p { margin: 0 0 6px; font-size: 13px; }
+.inspector-empty small { color: var(--text-muted); font-size: 11px; }
+.timeline .clip.drop-target { outline: 2px dashed var(--accent); outline-offset: 1px; }
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: 220px minmax(280px, 1fr) 268px; }
+  .app-header nav button { padding: 5px 8px; }
+  .chip-bar { display: none; }
+}
+@media (max-height: 720px) {
+  .timeline { height: clamp(190px, 34vh, 300px); }
+  .transport { height: 40px; }
+  .screen { margin: 8px 12px; }
+}
+.timeline { position: relative; }
+.timeline-status { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 8; max-width: 80%; padding: 6px 12px; border-radius: 999px; background: #0d0f13ee; border: 1px solid var(--border-control); font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.timeline-status.drag-warning { border-color: #8a6a3a; color: #f0c693; }

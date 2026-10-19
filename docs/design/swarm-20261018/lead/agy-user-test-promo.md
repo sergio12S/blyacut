@@ -6,16 +6,16 @@
 - Исходники приложения (`crates/`, `src/`, `src-tauri/`) НЕ правь, не коммить, ветки не меняй. Нашёл баг — запиши в отчёт с шагами воспроизведения.
 - Монтаж (порядок, обрезка, эффекты, громкость, фейды, экспорт) — **только инструментами MCP**. Готовый ролик через ffmpeg не склеивать.
 - ffmpeg можно использовать только как «камеру и синтезатор»: сгенерировать сырые клипы и музыку в рабочую папку, а в конце — проверить готовый файл (ffprobe, кадры).
-- Рабочая (авторизованная) папка: `/Users/serg/Movies/BlyaCut-agy-demo`. Всё создаёшь только там.
+- Рабочая (авторизованная) папка: `~/Movies/BlyaCut-agy-demo`. Всё создаёшь только там.
 
 ## 0. Подключение
-1. Приложение уже запущено (новая сборка). Пользователь сам нажмёт в правом доке **Agent → Enable agent access…** и выберет `/Users/serg/Movies/BlyaCut-agy-demo`.
+1. Приложение уже запущено (новая сборка). Пользователь сам нажмёт в правом доке **Agent → Enable agent access…** и выберет `~/Movies/BlyaCut-agy-demo`.
 2. Жди файл сессии: `ls -t /tmp/blyacut-*/session.json | head -1` (появится после клика). Пока его нет — сырьё можно готовить.
 3. Вызов любого инструмента (настоящий MCP-клиент через мост `target/debug/blyacut-mcp`):
    ```sh
-   cd /Users/serg/projects/PizdoCut
+   cd <repo>
    uv run --with 'mcp<2' python scripts/mcp-call.py "$SESSION" get_session
-   uv run --with 'mcp<2' python scripts/mcp-call.py "$SESSION" import_media '{"path":"/Users/serg/Movies/BlyaCut-agy-demo/clip1.mp4"}'
+   uv run --with 'mcp<2' python scripts/mcp-call.py "$SESSION" import_media '{"path":"~/Movies/BlyaCut-agy-demo/clip1.mp4"}'
    ```
    Инструменты: `get_project`, `get_timeline`, `get_session`, `import_media`, `apply_edits`, `propose_edits`, `undo`, `redo`, `export_video`, `cancel_export`, `list_effect_recipes`, `create_effect_recipe`. Схемы смотри в `docs/mcp.md` и `docs/effects.md`.
 
@@ -30,10 +30,10 @@ drawtext в этой сборке ffmpeg НЕТ — текста не будет
 3. Эффекты: `list_effect_recipes` → поле `builtin` (36 пресетов). Повесь на разные клипы минимум 6 разных пресетов (например VHS, Киберпанк, Нуар, Пиксель-арт, Сон, Появление из чёрного / Уход в чёрное). Создай **свой** рецепт через `create_effect_recipe` (например «BlyaCut Neon»: hue + saturation + chromatic_aberration + ghost_trails) и примени его.
 4. Хотя бы одна правка с удалением (`delete_clip`) обязательно через `propose_edits` — пользователь подтвердит её в окне. Это проверка сценария ревью.
 5. Попробуй хотя бы раз устаревшую ревизию (специально старый `expected_revision`) — запиши, понятна ли ошибка.
-6. `export_video` в `/Users/serg/Movies/BlyaCut-agy-demo/blyacut-promo.mp4`, поллинг `get_session` до завершения.
+6. `export_video` в `~/Movies/BlyaCut-agy-demo/blyacut-promo.mp4`, поллинг `get_session` до завершения.
 
 ## 3. Проверка результата
-`ffprobe` (длительность, кодеки), 6 кадров в `/Users/serg/Movies/BlyaCut-agy-demo/frames/` (посмотри их сам), громкость `volumedetect`.
+`ffprobe` (длительность, кодеки), 6 кадров в `~/Movies/BlyaCut-agy-demo/frames/` (посмотри их сам), громкость `volumedetect`.
 
 ## 4. Отчёт → `docs/design/swarm-20261018/agy/user-test-report.md` (русский)
 - Сценарий ролика и итог (путь, длительность, какие эффекты где).

@@ -1,10 +1,10 @@
 # Отчёт о тестировании вертикального шортса BlyaCut MCP v4
 **Тестировщик**: Агент `agy` (Creative Workflows & Agent Experience Architect)  
-**Режим**: Полностью автономный Headless Studio (`--headless /Users/serg/Movies/BlyaCut-agy-demo-v4 --autonomous`)  
+**Режим**: Полностью автономный Headless Studio (`--headless ~/Movies/BlyaCut-agy-demo-v4 --autonomous`)  
 **Дата**: 19 октября 2026 г.  
 **Лид проекта**: `claude-ux-20261018`  
 **Ветка**: `agent/transitions-presets` (коммит `b74a8de`)  
-**Итоговое видео**: `/Users/serg/Movies/BlyaCut-agy-demo-v4/blyacut-short-v4.mp4` (70 МБ, 1080×1920 9:16 vertical @ 30fps H.264, AAC stereo, 28.03 с, пик −2.2 dBFS)
+**Итоговое видео**: `~/Movies/BlyaCut-agy-demo-v4/blyacut-short-v4.mp4` (70 МБ, 1080×1920 9:16 vertical @ 30fps H.264, AAC stereo, 28.03 с, пик −2.2 dBFS)
 
 ---
 
@@ -41,7 +41,7 @@
 ## 2. Количество вызовов и ход сессии
 
 Весь монтаж шортса выполнен за **1 автономную итерацию** (`plan_v4.py`), включающую **21 вызов инструментов MCP**:
-1. `get_session` → `{"access": {"allowed_root": "/Users/serg/Movies/BlyaCut-agy-demo-v4", "mode": "autonomous"}, "pending_proposal": null, "render_job": null}`
+1. `get_session` → `{"access": {"allowed_root": "~/Movies/BlyaCut-agy-demo-v4", "mode": "autonomous"}, "pending_proposal": null, "render_job": null}`
 2. `get_project` → чтение начальных дорожек (`vt=d3de417a-...`, `at=1e20fd91-...`, ревизия 0)
 3. `apply_edits` (`set_settings`: 1080x1920, 30fps, `fill: true`, ревизия 1)
 4–10. `import_media` (7 вызовов: 6 видеоклипов и 1 аудиофайл, ревизия 8)
@@ -112,7 +112,7 @@ apply_edits: A 800 ms transition needs 400 ms of media after the outgoing clip's
     "mean_db": -17.4,
     "peak_db": -2.2
   },
-  "output": "/Users/serg/Movies/BlyaCut-agy-demo-v4/blyacut-short-v4.mp4",
+  "output": "~/Movies/BlyaCut-agy-demo-v4/blyacut-short-v4.mp4",
   "progress": 1.0,
   "revision": 19,
   "status": "complete",

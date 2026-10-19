@@ -1,9 +1,9 @@
 # Отчёт о тестировании автономного режима BlyaCut MCP v2
 **Тестировщик**: Агент `agy` (Creative Workflows & Agent Experience Architect)  
-**Режим**: Полностью автономный Headless Studio (`--headless /Users/serg/Movies/BlyaCut-agy-demo-v2 --autonomous`)  
+**Режим**: Полностью автономный Headless Studio (`--headless ~/Movies/BlyaCut-agy-demo-v2 --autonomous`)  
 **Дата**: 18 октября 2026 г.  
 **Лид проекта**: `claude-ux-20261018`  
-**Итоговое видео**: `/Users/serg/Movies/BlyaCut-agy-demo-v2/blyacut-promo-v2b.mp4` (97 МБ, 1080p30 H.264, AAC stereo, 39.08 с, пик −2.3 dBFS)
+**Итоговое видео**: `~/Movies/BlyaCut-agy-demo-v2/blyacut-promo-v2b.mp4` (97 МБ, 1080p30 H.264, AAC stereo, 39.08 с, пик −2.3 dBFS)
 
 ---
 
@@ -46,12 +46,12 @@
 Работа выполнена за **2 автономные итерации** (два независимых сессионных запуска скрипта через `scripts/mcp-script.py`), суммарно **30 вызовов инструментов MCP**:
 
 ### Итерация 1 (`iteration1.py`) — 24 вызова:
-1. `get_session` → `{"access": {"allowed_root": "/Users/serg/Movies/BlyaCut-agy-demo-v2", "mode": "autonomous"}, "pending_proposal": null, "render_job": null}`
+1. `get_session` → `{"access": {"allowed_root": "~/Movies/BlyaCut-agy-demo-v2", "mode": "autonomous"}, "pending_proposal": null, "render_job": null}`
 2. `list_effect_recipes` → загружено 36 встроенных рецептов (`builtin-*`)
 3. `create_effect_recipe` → создан кастомный рецепт:
 ```json
 {
-  "path": "/Users/serg/Movies/BlyaCut-agy-demo-v2/effects/blyacut-cyber-glow.json",
+  "path": "~/Movies/BlyaCut-agy-demo-v2/effects/blyacut-cyber-glow.json",
   "recipe": {
     "id": "blyacut-cyber-glow",
     "name": "Cyber Glow",
@@ -129,7 +129,7 @@
     "mean_db": -12.9,
     "peak_db": 0.0
   },
-  "output": "/Users/serg/Movies/BlyaCut-agy-demo-v2/blyacut-promo-v2.mp4",
+  "output": "~/Movies/BlyaCut-agy-demo-v2/blyacut-promo-v2.mp4",
   "progress": 1.0,
   "revision": 14,
   "status": "complete",
@@ -159,7 +159,7 @@
     "mean_db": -16.5,
     "peak_db": -2.3
   },
-  "output": "/Users/serg/Movies/BlyaCut-agy-demo-v2/blyacut-promo-v2b.mp4",
+  "output": "~/Movies/BlyaCut-agy-demo-v2/blyacut-promo-v2b.mp4",
   "progress": 1.0,
   "revision": 2,
   "status": "complete",

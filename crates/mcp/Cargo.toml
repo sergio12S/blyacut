@@ -3,6 +3,7 @@ name = "blyacut-mcp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 [dependencies]
 blyacut-session = { path = "../session" }
 serde_json.workspace = true

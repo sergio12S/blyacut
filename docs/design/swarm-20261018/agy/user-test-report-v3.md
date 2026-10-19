@@ -1,10 +1,10 @@
 # Отчёт о тестировании автономного режима наложений BlyaCut MCP v3
 **Тестировщик**: Агент `agy` (Creative Workflows & Agent Experience Architect)  
-**Режим**: Полностью автономный Headless Studio (`--headless /Users/serg/Movies/BlyaCut-agy-demo-v3 --autonomous`)  
+**Режим**: Полностью автономный Headless Studio (`--headless ~/Movies/BlyaCut-agy-demo-v3 --autonomous`)  
 **Дата**: 19 октября 2026 г.  
 **Лид проекта**: `claude-ux-20261018`  
 **Ветка**: `agent/compositing` (коммит `46d8a30`)  
-**Итоговое видео**: `/Users/serg/Movies/BlyaCut-agy-demo-v3/blyacut-promo-v3b.mp4` (152 МБ, 1080p @ 30fps H.264, AAC stereo, 32.07 с, пик −2.2 dBFS)
+**Итоговое видео**: `~/Movies/BlyaCut-agy-demo-v3/blyacut-promo-v3b.mp4` (152 МБ, 1080p @ 30fps H.264, AAC stereo, 32.07 с, пик −2.2 dBFS)
 
 ---
 
@@ -38,12 +38,12 @@
 Работа выполнена за **2 автономные итерации** (два сессионных запуска скрипта через `scripts/mcp-script.py`), суммарно **36 вызовов инструментов MCP**:
 
 ### Итерация 1 (`plan_v3.py`) — 22 вызова:
-1. `get_session` → `{"access": {"allowed_root": "/Users/serg/Movies/BlyaCut-agy-demo-v3", "mode": "autonomous"}, "pending_proposal": null, "render_job": null}`
+1. `get_session` → `{"access": {"allowed_root": "~/Movies/BlyaCut-agy-demo-v3", "mode": "autonomous"}, "pending_proposal": null, "render_job": null}`
 2. `list_effect_recipes` → загружено 36 встроенных рецептов.
 3. `create_effect_recipe` → создан кастомный рецепт:
 ```json
 {
-  "path": "/Users/serg/Movies/BlyaCut-agy-demo-v3/effects/blyacut-hyper-neon.json",
+  "path": "~/Movies/BlyaCut-agy-demo-v3/effects/blyacut-hyper-neon.json",
   "recipe": {
     "id": "blyacut-hyper-neon",
     "name": "Hyper Neon",
@@ -132,7 +132,7 @@
     "mean_db": -17.3,
     "peak_db": -2.2
   },
-  "output": "/Users/serg/Movies/BlyaCut-agy-demo-v3/blyacut-promo-v3b.mp4",
+  "output": "~/Movies/BlyaCut-agy-demo-v3/blyacut-promo-v3b.mp4",
   "progress": 1.0,
   "revision": 5,
   "status": "complete",

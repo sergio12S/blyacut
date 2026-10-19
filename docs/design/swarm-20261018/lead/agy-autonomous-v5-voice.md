@@ -9,7 +9,7 @@
 - `set_speed {clip_id, speed_milli, reverse}`, `freeze_frame {clip_id, at_ms, duration_ms, output_path .png}`.
 
 ## Ролик
-Папка `/Users/serg/Movies/BlyaCut-agy-demo-v5` (создай; сырьё скопируй из v2–v4). 30–45 с, 1920×1080.
+Папка `~/Movies/BlyaCut-agy-demo-v5` (создай; сырьё скопируй из v2–v4). 30–45 с, 1920×1080.
 1. **Голос за кадром:** сгенерируй русскую озвучку системной командой macOS, например
    `say -v Milena -o voice.aiff "Это BlyaCut. Агент сам монтирует видео, ..."` и сконвертируй в WAV через ffmpeg. 3–5 фраз. Положи на звуковую дорожку.
 2. **Субтитры по-честному:** `extract_audio` клипа с голосом → расшифруй **своим** распознаванием → `add_captions`. Если у тебя нет speech-to-text — **так и напиши в отчёте**, и только тогда используй текст сценария (тайминги всё равно подбирай по WAV, например по паузам через ffmpeg silencedetect).

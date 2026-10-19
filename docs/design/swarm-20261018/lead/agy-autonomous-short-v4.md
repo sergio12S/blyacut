@@ -9,7 +9,7 @@
 - Подробно: `docs/mcp.md`, описание `apply_edits` в `tools/list`.
 
 ## Ролик
-Папка `/Users/serg/Movies/BlyaCut-agy-demo-v4` (создай; сырьё скопируй из v2/v3). Запуск: `scripts/mcp-script.py --headless <папка> --autonomous plan.py`.
+Папка `~/Movies/BlyaCut-agy-demo-v4` (создай; сырьё скопируй из v2/v3). Запуск: `scripts/mcp-script.py --headless <папка> --autonomous plan.py`.
 - Вертикаль 1080×1920, 25–35 с, 6+ сцен на главной дорожке.
 - Минимум 5 разных переходов между сценами (0,5–1 с).
 - Минимум 3 текстовых наложения (`create_text_overlay` с `place`, стиль `box` или `outline`) — для вертикали держи текст сверху или снизу.

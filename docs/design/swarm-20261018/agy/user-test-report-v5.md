@@ -1,10 +1,10 @@
 # Отчёт о тестировании BlyaCut MCP v5: голос, субтитры, дакинг и анимация
 **Тестировщик**: Агент `agy` (Creative Workflows & Agent Experience Architect)  
-**Режим**: Полностью автономный Headless Studio (`--headless /Users/serg/Movies/BlyaCut-agy-demo-v5 --autonomous`)  
+**Режим**: Полностью автономный Headless Studio (`--headless ~/Movies/BlyaCut-agy-demo-v5 --autonomous`)  
 **Дата**: 19 октября 2026 г.  
 **Лид проекта**: `claude-ux-20261018`  
 **Ветка**: `agent/ducking-keyframes` (коммит `c3b562d`)  
-**Итоговое видео**: `/Users/serg/Movies/BlyaCut-agy-demo-v5/blyacut-v5-voice-clean.mp4` (108 МБ, 1920×1080 @ 30fps H.264, AAC stereo, 32.57 с, пик −3.4 dBFS)
+**Итоговое видео**: `~/Movies/BlyaCut-agy-demo-v5/blyacut-v5-voice-clean.mp4` (108 МБ, 1920×1080 @ 30fps H.264, AAC stereo, 32.57 с, пик −3.4 dBFS)
 
 ---
 
@@ -44,7 +44,7 @@
        "duration_ms": 32500,
        "format": "WAV PCM 16-bit, 16 kHz, mono",
        "note": "WAV time 0 is timeline_offset_ms; add it to your transcript timings before add_captions",
-       "path": "/Users/serg/Movies/BlyaCut-agy-demo-v5/extracted_voice.wav",
+       "path": "~/Movies/BlyaCut-agy-demo-v5/extracted_voice.wav",
        "timeline_offset_ms": 0
      }
      ```
@@ -73,7 +73,7 @@
       "mean_db": -19.1,
       "peak_db": -3.4
     },
-    "output": "/Users/serg/Movies/BlyaCut-agy-demo-v5/blyacut-v5-voice-clean.mp4",
+    "output": "~/Movies/BlyaCut-agy-demo-v5/blyacut-v5-voice-clean.mp4",
     "progress": 1.0,
     "revision": 3,
     "status": "complete",

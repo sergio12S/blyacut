@@ -3,6 +3,7 @@ name = "blyacut-session"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 [dependencies]
 blyacut-core = { path = "../core" }
 blyacut-engine = { path = "../engine" }

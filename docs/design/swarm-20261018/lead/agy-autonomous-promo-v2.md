@@ -12,13 +12,13 @@
 ## Как работать
 Одна сессия = один скрипт. Пиши Python-сценарий, в нём есть `call(tool, args)` и `log(...)`:
 ```sh
-cd /Users/serg/projects/PizdoCut
-uv run --with 'mcp<2' python scripts/mcp-script.py --headless /Users/serg/Movies/BlyaCut-agy-demo-v2 --autonomous /Users/serg/Movies/BlyaCut-agy-demo-v2/plan.py
+cd <repo>
+uv run --with 'mcp<2' python scripts/mcp-script.py --headless ~/Movies/BlyaCut-agy-demo-v2 --autonomous ~/Movies/BlyaCut-agy-demo-v2/plan.py
 ```
 Можно запускать несколько итераций: в конце каждой `save_project`, в начале следующей `open_project`.
 
 ## Ролик
-Папка: `/Users/serg/Movies/BlyaCut-agy-demo-v2` (создай; сырьё из v1 можно скопировать туда — пути должны быть внутри папки). Музыку сделай **тише** (пик ≤ −1 dBFS).
+Папка: `~/Movies/BlyaCut-agy-demo-v2` (создай; сырьё из v1 можно скопировать туда — пути должны быть внутри папки). Музыку сделай **тише** (пик ≤ −1 dBFS).
 - 35–45 с, видео и музыка одной длины (в `warnings` должно быть пусто перед экспортом).
 - Минимум 4 титра (`create_title_card`), например: «BlyaCut», «Монтаж силами агентов», «43 эффекта · 36 пресетов», «Без человека. Без облака.», финал «blyacut — local first». Цвета подбери под эффекты.
 - Эффекты на каждом клипе, хотя бы один свой рецепт.

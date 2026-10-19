@@ -1,6 +1,6 @@
 # Задача для agy: UI «куча эффектов» (лид: claude-ux-20261018)
 
-Ветка: `agent/effects-pack` (уже активна в /Users/serg/projects/PizdoCut). НЕ коммить, НЕ переключай ветки — коммитит лид.
+Ветка: `agent/effects-pack` (уже активна в <repo>). НЕ коммить, НЕ переключай ветки — коммитит лид.
 
 ## Твои файлы (только их)
 - `src/components/EffectsPanel.vue` — переписать.

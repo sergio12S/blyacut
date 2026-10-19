@@ -132,6 +132,6 @@ BlyaCut соединяет детерминированное локальное
 
 ## 7. Результаты валидации
 
-- Спецификация контракта: [`agent-contract.json`](file:///Users/serg/projects/PizdoCut/docs/design/swarm-20261018/agy/agent-contract.json) содержит явные поля `status: "implemented"` и `status: "proposed"`.
-- Прототип интерфейса: [`prototype.html`](file:///Users/serg/projects/PizdoCut/docs/design/swarm-20261018/agy/prototype.html) содержит понятную визуализацию реализованных и проектируемых функций.
+- Спецификация контракта: [`agent-contract.json`](agent-contract.json) содержит явные поля `status: "implemented"` и `status: "proposed"`.
+- Прототип интерфейса: [`prototype.html`](prototype.html) содержит понятную визуализацию реализованных и проектируемых функций.
 - Валидатор артефактов: `python3 scripts/verify-design-deliverable.py agy` завершается с кодом 0.

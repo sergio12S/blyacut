@@ -4,6 +4,10 @@ A local-first, open-source desktop video editor built with Tauri 2, Rust and Vue
 
 **Status: 0.2 MVP — audio composition + external-agent editing + hot-loadable effects.** Import video/audio, split and trim, position independent audio tracks, set volume and fades, undo/redo, save/load and export H.264/AAC MP4. External MCP agents can operate the same live Rust session. This is an early editor, not a finished Filmora replacement.
 
+## Download
+
+Prebuilt unsigned macOS builds (Apple Silicon) are attached to [GitHub Releases](https://github.com/sergio12S/blyacut/releases). The app is not notarized: after unzipping, right-click **BlyaCut.app → Open** the first time, or run `xattr -dr com.apple.quarantine BlyaCut.app`. FFmpeg must still be installed (`brew install ffmpeg`).
+
 ## Run on macOS
 
 Prerequisites: Xcode Command Line Tools, Rust 1.90+ (1.98 tested), Node.js 22+, FFmpeg with `libx264` and `aac` encoders.

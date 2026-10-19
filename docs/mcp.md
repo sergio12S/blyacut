@@ -13,7 +13,7 @@ BlyaCut 0.2 exposes a working **stdio MCP bridge into the running desktop sessio
    cargo build -p blyacut-mcp
    ```
 
-2. In the right sidebar’s **Agent** tab, click **Enable agent access…** and choose the directory containing the footage/audio and intended exports. The app creates a private, temporary session config. Its path appears in the sidebar.
+2. In the right dock open **Агент** and click **Выбрать папку и включить…**, choosing the directory with the footage/audio and intended exports. The app creates a private, temporary session config and shows copy-ready connection snippets (a `claude mcp add` command, a JSON `mcpServers` block, the headless command) plus live call status.
 3. Configure your MCP host to launch `target/debug/blyacut-mcp`, passing that exact config path as its first argument. A generic host configuration example:
 
    ```json
@@ -50,7 +50,7 @@ Agents without their own MCP client can run one persistent session from a Python
 uv run --with 'mcp<2' python scripts/mcp-script.py --headless /path/to/folder --autonomous plan.py
 ```
 
-In the desktop app, tick **Autonomous agent** before **Enable agent access…** to give a connected agent the same authority; Undo still works.
+In the desktop app, tick **Автономно** before **Выбрать папку и включить…** to give a connected agent the same authority; Undo still works.
 
 Title cards use a system TrueType font (Arial on macOS, DejaVu/Noto on Linux; override with `BLYACUT_FONT`), because FFmpeg builds without libfreetype have no text filters.
 

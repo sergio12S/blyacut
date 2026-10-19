@@ -36,8 +36,17 @@ pub struct ConnectionInfo {
     pub allowed_root: PathBuf,
     pub mode: &'static str,
 }
+/// What connected agents have done in this session (for the desktop's status line).
+#[derive(Clone, Default, Serialize)]
+pub struct Activity {
+    pub calls: u64,
+    pub last_tool: Option<String>,
+    pub last_call_unix_ms: Option<u64>,
+    pub last_error: Option<String>,
+}
 pub struct Server {
     pub info: ConnectionInfo,
+    activity: Arc<std::sync::Mutex<Activity>>,
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
     directory: PathBuf,
@@ -76,6 +85,8 @@ impl Server {
             };
             let stop = Arc::new(AtomicBool::new(false));
             let flag = stop.clone();
+            let activity = Arc::new(std::sync::Mutex::new(Activity::default()));
+            let log = activity.clone();
             let thread = std::thread::spawn(move || {
                 while !flag.load(Ordering::Acquire) {
                     match listener.accept() {
@@ -95,7 +106,18 @@ impl Server {
                                 if request.token != token || flag.load(Ordering::Acquire) {
                                     return Err("Unauthorized or closed session".into());
                                 }
-                                gateway.call(&request.name, request.arguments)
+                                let name = request.name.clone();
+                                let result = gateway.call(&request.name, request.arguments);
+                                if let Ok(mut a) = log.lock() {
+                                    a.calls += 1;
+                                    a.last_tool = Some(name);
+                                    a.last_call_unix_ms = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .ok()
+                                        .map(|d| d.as_millis() as u64);
+                                    a.last_error = result.as_ref().err().cloned();
+                                }
+                                result
                             })();
                             let response = match result {
                                 Ok(result) => json!({"result":result}),
@@ -113,11 +135,12 @@ impl Server {
                     }
                 }
             });
-            Ok((info, stop, thread))
+            Ok((info, stop, thread, activity))
         })();
         match result {
-            Ok((info, stop, thread)) => Ok(Self {
+            Ok((info, stop, thread, activity)) => Ok(Self {
                 info,
+                activity,
                 stop,
                 thread: Some(thread),
                 directory,
@@ -127,6 +150,11 @@ impl Server {
                 Err(e)
             }
         }
+    }
+}
+impl Server {
+    pub fn activity(&self) -> Activity {
+        self.activity.lock().map(|a| a.clone()).unwrap_or_default()
     }
 }
 impl Drop for Server {

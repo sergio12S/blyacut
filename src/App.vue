@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -17,6 +17,7 @@ import TransitionControl from "./components/TransitionControl.vue";
 import SpeedControl from "./components/SpeedControl.vue";
 import type { Snapshot } from "./types";
 import { isOverlayTrack, time } from "./types";
+import logo from "./assets/logo-mark.svg";
 import { clipLength } from "./timeline-gesture";
 const e = useEditor();
 const exporting = ref(false),
@@ -162,8 +163,38 @@ function key(ev: KeyboardEvent) {
     e.step(ev.key === "ArrowLeft" ? -1 : 1);
   }
 }
+// The name is the joke: «Бля!» greets you on launch (switch it off in the status bar).
+const greeting = ref(readGreeting());
+function readGreeting() {
+  try {
+    return localStorage.getItem("blyacut.greeting") !== "off";
+  } catch {
+    return true;
+  }
+}
+watch(greeting, (on) => {
+  try {
+    localStorage.setItem("blyacut.greeting", on ? "on" : "off");
+  } catch {
+    /* storage unavailable: keep the in-memory choice */
+  }
+});
+async function sayBlya() {
+  const text = "Бля!";
+  if (
+    isTauri() &&
+    (await invoke<boolean>("greet", { text }).catch(() => false))
+  )
+    return;
+  if ("speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ru-RU";
+    speechSynthesis.speak(u);
+  }
+}
 onMounted(async () => {
   window.addEventListener("keydown", key);
+  if (greeting.value) void sayBlya();
   if (!isTauri()) {
     e.error =
       "Запустите npm run tauri dev: в браузере нет доступа к файлам и движку монтажа.";
@@ -227,7 +258,18 @@ async function render() {
 <template>
   <div class="editor-shell">
     <header class="app-header">
-      <div class="brand"><span class="brand-icon">B/</span>BlyaCut</div>
+      <div
+        class="brand"
+        title="BlyaCut — монтаж, от которого хочется сказать «бля!»"
+      >
+        <img
+          class="brand-mark"
+          :src="logo"
+          alt=""
+          width="26"
+          height="26"
+        /><span class="wordmark">Blya<b>Cut</b></span>
+      </div>
       <div class="project-name" :title="e.projectPath || 'Проект не сохранён'">
         {{ e.project?.name ?? "Новый проект"
         }}<span
@@ -411,7 +453,9 @@ async function render() {
     </div>
     <Timeline />
     <footer class="status-bar">
-      <span><i /> Локально</span
+      <label class="greet-toggle" title="Сказать «Бля!» при запуске"
+        ><input v-model="greeting" type="checkbox" /> «Бля!» при запуске</label
+      ><span><i /> Локально</span
       ><span :title="autosavePath">{{
         autosavePath
           ? "Резервная копия сохранена"

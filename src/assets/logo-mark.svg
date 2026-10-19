@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BlyaCut">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d2117"/>
+      <stop offset="1" stop-color="#0c0e0a"/>
+    </linearGradient>
+    <linearGradient id="lime" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e4ffb0"/>
+      <stop offset="0.55" stop-color="#c1f17b"/>
+      <stop offset="1" stop-color="#8fd145"/>
+    </linearGradient>
+    <!-- The B, drawn with even-odd counters, in a 512 box. -->
+    <path id="b" fill-rule="evenodd" d="M132 96 H292 C356 96 392 130 392 178 C392 214 372 238 342 248 C384 258 410 290 410 336 C410 392 370 424 302 424 H132 Z
+      M206 158 H284 C308 158 320 170 320 188 C320 206 308 218 284 218 H206 Z
+      M206 276 H292 C320 276 334 290 334 310 C334 330 320 344 292 344 H206 Z"/>
+    <!-- Diagonal cut through the letter. -->
+    <clipPath id="upper"><polygon points="0,0 512,0 512,150 0,410"/></clipPath>
+    <clipPath id="lower"><polygon points="0,428 512,168 512,512 0,512"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <g clip-path="url(#lower)"><use href="#b" fill="url(#lime)"/></g>
+  <g clip-path="url(#upper)" transform="translate(14,-28)"><use href="#b" fill="url(#lime)"/></g>
+  <!-- The blade sits in the gap the cut opens (centre line y = 408.6 - 0.508x). -->
+  <line x1="96" y1="360" x2="440" y2="185" stroke="#c1f17b" stroke-width="14" stroke-linecap="round" opacity="0.28"/>
+  <line x1="96" y1="360" x2="440" y2="185" stroke="#f6ffe6" stroke-width="4" stroke-linecap="round"/>
+</svg>

@@ -259,6 +259,47 @@ fn start_agent(
 }
 #[cfg(unix)]
 #[tauri::command]
+fn agent_activity(s: State<Desktop>) -> Result<Option<blyacut_session::ipc::Activity>> {
+    Ok(s.agent
+        .lock()
+        .map_err(|e| e.to_string())?
+        .as_ref()
+        .map(|server| server.activity()))
+}
+/// The startup greeting, spoken with the system voice on macOS (no bundled audio).
+/// Returns false where no system voice is available, so the UI can fall back to Web Speech.
+#[tauri::command]
+fn greet(text: String) -> bool {
+    if !cfg!(target_os = "macos") || text.chars().count() > 40 {
+        return false;
+    }
+    std::process::Command::new("say")
+        .args(["-v", "Milena", &text])
+        .spawn()
+        .is_ok()
+}
+/// Where the MCP bridge lives: bundled beside the app executable, or `target/*/` in development.
+#[tauri::command]
+fn agent_bridge() -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "blyacut-mcp.exe"
+    } else {
+        "blyacut-mcp"
+    };
+    let exe = std::env::current_exe().ok()?;
+    exe.ancestors()
+        .skip(1)
+        .flat_map(|dir| {
+            [
+                dir.join(name),
+                dir.join("target/debug").join(name),
+                dir.join("target/release").join(name),
+            ]
+        })
+        .find(|path| path.is_file())
+}
+#[cfg(unix)]
+#[tauri::command]
 fn get_agent(s: State<Desktop>) -> Result<Option<ConnectionInfo>> {
     Ok(s.agent
         .lock()
@@ -324,7 +365,10 @@ fn main() {
         resolve_proposal,
         start_agent,
         stop_agent,
-        get_agent
+        get_agent,
+        agent_activity,
+        agent_bridge,
+        greet
     ]);
     #[cfg(not(unix))]
     let builder = builder.invoke_handler(tauri::generate_handler![
@@ -346,7 +390,9 @@ fn main() {
         freeze_frame,
         import_subtitles,
         get_proposal,
-        resolve_proposal
+        resolve_proposal,
+        agent_bridge,
+        greet
     ]);
     builder
         .build(tauri::generate_context!())

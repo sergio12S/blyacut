@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { describeEdit } from "../edit-description";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEditor } from "../stores/editor";
 import { clipLength } from "../timeline-gesture";
+import logo from "../assets/logo-mark.svg";
 import {
   time,
   type AgentConnection,
@@ -16,9 +17,19 @@ const e = useEditor();
 const connection = ref<AgentConnection | null>(null);
 const autonomous = ref(false);
 const proposal = ref<Proposal | null>(null);
+const bridge = ref<string | null>(null);
+interface Activity {
+  calls: number;
+  last_tool: string | null;
+  last_call_unix_ms: number | null;
+  last_error: string | null;
+}
+const activity = ref<Activity | null>(null);
+const now = ref(Date.now());
 const emit = defineEmits<{ pending: [count: number] }>();
 watch(proposal, (p) => emit("pending", p?.edits.length ?? 0));
 let unlisten: UnlistenFn | undefined;
+let poll: ReturnType<typeof setInterval> | undefined;
 onMounted(async () => {
   if (!isTauri()) return;
   try {
@@ -28,11 +39,23 @@ onMounted(async () => {
     );
     proposal.value = await invoke("get_proposal");
     connection.value = await invoke("get_agent");
+    bridge.value = await invoke("agent_bridge");
   } catch (error) {
     e.error = String(error);
   }
+  // Live status while access is on: has an agent actually talked to us?
+  poll = setInterval(async () => {
+    now.value = Date.now();
+    if (connection.value)
+      activity.value = await invoke<Activity | null>("agent_activity").catch(
+        () => null,
+      );
+  }, 1500);
 });
-onUnmounted(() => unlisten?.());
+onUnmounted(() => {
+  unlisten?.();
+  clearInterval(poll);
+});
 async function enable() {
   await e.guard(async () => {
     const root = await open({
@@ -51,6 +74,7 @@ async function disable() {
   await e.guard(async () => {
     await invoke("stop_agent");
     connection.value = null;
+    activity.value = null;
   });
 }
 async function resolve(accept: boolean) {
@@ -63,49 +87,171 @@ async function resolve(accept: boolean) {
     proposal.value = null;
   });
 }
+
+// "Address" snippets: MCP runs over stdio, so an agent needs a command, not a URL.
+const bridgePath = computed(() => bridge.value ?? "/путь/к/blyacut-mcp");
+const quote = (s: string) => (/[\s"']/.test(s) ? JSON.stringify(s) : s);
+const tabs = ["Claude Code", "JSON-конфиг", "Без окна"] as const;
+const tab = ref<(typeof tabs)[number]>("Claude Code");
+const snippet = computed(() => {
+  const config = connection.value?.config_path ?? "";
+  const root = connection.value?.allowed_root ?? "/папка/агента";
+  if (tab.value === "Claude Code")
+    return `claude mcp add blyacut -- ${quote(bridgePath.value)} ${quote(config)}`;
+  if (tab.value === "JSON-конфиг")
+    return JSON.stringify(
+      {
+        mcpServers: {
+          blyacut: { command: bridgePath.value, args: [config] },
+        },
+      },
+      null,
+      2,
+    );
+  return `${quote(bridgePath.value)} --headless ${quote(root)} --autonomous`;
+});
+const hint = computed(
+  () =>
+    ({
+      "Claude Code": "Выполните в терминале, затем перезапустите Claude Code.",
+      "JSON-конфиг":
+        "Вставьте в настройки MCP: Claude Desktop, Cursor, Codex, Gemini CLI и другие.",
+      "Без окна":
+        "Агент запускает собственную студию без этого окна — для полностью автономного монтажа.",
+    })[tab.value],
+);
+const copied = ref(false);
+async function copy() {
+  try {
+    await navigator.clipboard.writeText(snippet.value);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = snippet.value;
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 1500);
+}
+const status = computed(() => {
+  const a = activity.value;
+  if (!a?.calls) return { live: false, text: "Ждём агента…" };
+  const ago = Math.max(
+    0,
+    Math.round((now.value - (a.last_call_unix_ms ?? 0)) / 1000),
+  );
+  return {
+    live: ago < 30,
+    text: `Агент на связи · ${a.calls} вызов${a.calls === 1 ? "" : a.calls < 5 ? "а" : "ов"} · ${a.last_tool} ${ago} с назад`,
+  };
+});
 </script>
 <template>
-  <div class="agent-card">
-    <span class="badge">MCP · ЛОКАЛЬНЫЙ АГЕНТ</span>
-    <h3>
-      {{ connection ? "Агент подключён" : "Подключите агента для монтажа" }}
-    </h3>
-    <p v-if="!connection">
-      Выберите папку: агент сможет импортировать оттуда медиа и сохранять туда
-      экспорт. Внешние агенты монтируют этот таймлайн через MCP.
-    </p>
-    <label v-if="!connection" class="autonomy-toggle"
-      ><input v-model="autonomous" type="checkbox" /> Автономный агент: удалять
-      и делать большие правки без моего подтверждения</label
-    >
-    <p v-else-if="connection.mode === 'autonomous'" class="autonomy-on">
-      Автономный режим: агент монтирует без подтверждений. Отмена (⌘Z) работает.
-    </p>
-    <details v-else :open="!proposal" class="connection-details">
-      <summary>Подключение</summary>
+  <div class="agent">
+    <header class="hero">
+      <img :src="logo" alt="" width="40" height="40" />
+      <div>
+        <h3>Монтаж силами ИИ-агента</h3>
+        <p>
+          Агент подключается по MCP — открытому стандарту Claude, Cursor, Codex
+          и Gemini — и правит этот таймлайн вместе с вами.
+        </p>
+      </div>
+    </header>
+
+    <ol class="steps">
+      <li :class="{ done: connection }">
+        <span class="n">1</span>
+        <div>
+          <strong>Папка агента</strong>
+          <p v-if="!connection">
+            Оттуда агент берёт медиа и туда сохраняет экспорт. Других файлов он
+            не видит.
+          </p>
+          <p v-else class="path" :title="connection.allowed_root">
+            {{ connection.allowed_root }}
+          </p>
+          <label v-if="!connection" class="toggle"
+            ><input v-model="autonomous" type="checkbox" /> Автономно: удалять и
+            делать большие правки без моего подтверждения</label
+          >
+          <p v-else-if="connection.mode === 'autonomous'" class="autonomy-on">
+            Автономный режим. Отмена (⌘Z) работает.
+          </p>
+          <button
+            :class="connection ? 'ghost-danger' : 'primary'"
+            :disabled="e.busy"
+            @click="connection ? disable() : enable()"
+          >
+            {{ connection ? "Отключить агента" : "Выбрать папку и включить…" }}
+          </button>
+        </div>
+      </li>
+
+      <li :class="{ dim: !connection }">
+        <span class="n">2</span>
+        <div class="address">
+          <strong>Адрес для агента</strong>
+          <div class="tabs" role="tablist">
+            <button
+              v-for="t in tabs"
+              :key="t"
+              role="tab"
+              :aria-selected="tab === t"
+              @click="tab = t"
+            >
+              {{ t }}
+            </button>
+          </div>
+          <pre class="snippet"><code>{{ snippet }}</code></pre>
+          <div class="row">
+            <span class="hint">{{ hint }}</span>
+            <button
+              class="copy"
+              :disabled="!connection && tab !== 'Без окна'"
+              @click="copy"
+            >
+              {{ copied ? "Скопировано ✓" : "Копировать" }}
+            </button>
+          </div>
+          <p v-if="!bridge" class="warn">
+            Мост не найден: соберите его командой
+            <code>cargo build -p blyacut-mcp</code>.
+          </p>
+        </div>
+      </li>
+
+      <li :class="{ dim: !connection }">
+        <span class="n">3</span>
+        <div>
+          <strong>Попросите агента</strong>
+          <p class="example">
+            «Смонтируй из файлов в папке ролик на 30 секунд с музыкой и
+            субтитрами»
+          </p>
+          <p v-if="connection" class="status" :class="{ live: status.live }">
+            <i />{{ status.text }}
+          </p>
+          <p v-if="activity?.last_error" class="warn">
+            Последняя ошибка агента: {{ activity.last_error }}
+          </p>
+        </div>
+      </li>
+    </ol>
+
+    <details class="explain">
+      <summary>Почему это «адрес», а не ссылка?</summary>
       <p>
-        Папка агента:
-        <strong class="path-label">{{ connection.allowed_root }}</strong>
-      </p>
-      <label
-        >Конфиг сессии<input
-          readonly
-          :value="connection.config_path"
-          aria-label="Путь к конфигу сессии агента"
-          @focus="($event.target as HTMLInputElement).select()"
-      /></label>
-      <p class="muted">
-        Передайте этот путь в blyacut-mcp. Без приложения агент может работать
-        так: blyacut-mcp --headless ПАПКА --autonomous.
+        MCP-агент запускает на этом Mac маленькую программу-мост
+        <code>blyacut-mcp</code> и общается с ней через стандартный ввод-вывод.
+        Мост находит это окно по приватному файлу сессии (доступ только у вас),
+        поэтому сеть не открывается и снаружи к монтажу не подключиться. Файл
+        сессии меняется при каждом включении.
       </p>
     </details>
-    <button
-      class="full"
-      :disabled="e.busy"
-      @click="connection ? disable() : enable()"
-    >
-      {{ connection ? "Отключить агента" : "Разрешить доступ агенту…" }}
-    </button>
+
     <div v-if="proposal" class="proposal-card">
       <strong>Агент предлагает правки</strong>
       <p>
@@ -137,30 +283,186 @@ async function resolve(accept: boolean) {
         Применить правки</button
       ><button class="full" @click="resolve(false)">Отклонить</button>
     </div>
-    <p class="muted">Транскрипция и генерация медиа пока не реализованы.</p>
   </div>
 </template>
 <style scoped>
-.autonomy-toggle {
+.agent {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.hero {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.hero h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.hero p {
+  margin: 0;
+  line-height: 1.45;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.steps > li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+}
+.steps > li.dim {
+  opacity: 0.55;
+}
+.n {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.done .n {
+  background: #2c3a1d;
+  color: var(--accent);
+  border: 1px solid #62744d;
+}
+.steps strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.steps p {
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+.path {
+  font-family: var(--font-code);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toggle {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  margin: 8px 0 10px;
-  font-size: 12px;
-  line-height: 1.4;
+  margin-bottom: 8px;
   cursor: pointer;
 }
-.autonomy-toggle input {
+.toggle input {
+  accent-color: var(--accent);
   margin-top: 2px;
-  accent-color: #c1f17b;
 }
 .autonomy-on {
-  margin: 8px 0;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border-radius: 5px;
   border: 1px solid #5c4b1c;
   background: #2c2614;
   color: #f4c46b;
-  font-size: 12px;
+}
+.ghost-danger {
+  color: var(--danger);
+}
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-input);
+  border-radius: 6px;
+  padding: 2px;
+  margin-bottom: 6px;
+}
+.tabs button {
+  flex: 1;
+  padding: 4px 2px;
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+}
+.tabs button[aria-selected="true"] {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+.snippet {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 140px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #0b0d10;
+  border: 1px solid var(--border-subtle);
+  color: #d8f6b4;
+  font: 11px/1.5 var(--font-code);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.copy {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.example {
+  font-style: italic;
+  color: var(--text-primary);
+}
+.status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b7280;
+  flex-shrink: 0;
+}
+.status.live {
+  color: var(--accent);
+}
+.status.live i {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px #c1f17b33;
+}
+.warn {
+  color: #f0c693;
+}
+.explain summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.explain p {
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+code {
+  font-family: var(--font-code);
+  color: var(--text-primary);
 }
 </style>

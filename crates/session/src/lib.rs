@@ -190,6 +190,82 @@ impl Session {
         (self.emit)(Event::Proposal(None));
         Ok(self.changed(snapshot))
     }
+    /// Hold the main-track frame at `at_ms` for `duration_ms`: split there and insert a still
+    /// (written to `png`) carrying the clip's effects. Undo takes two steps (the edit, then the
+    /// still's import). Returns the still's clip ID.
+    pub fn freeze_frame(
+        &self,
+        clip_id: &str,
+        at_ms: u64,
+        duration_ms: u64,
+        png: &Path,
+    ) -> Result<(Snapshot, String)> {
+        if !(100..=60_000).contains(&duration_ms) {
+            return Err("Freeze duration must be 100..=60000 ms".into());
+        }
+        let snapshot = self.snapshot()?;
+        let p = &snapshot.project;
+        let main = p.main_video_track().ok_or("No main video track")?;
+        let index = main
+            .clips
+            .iter()
+            .position(|c| c.id == clip_id)
+            .ok_or("Freeze frame works on main-track clips")?;
+        let clip = &main.clips[index];
+        if at_ms < clip.position_ms || at_ms > clip.position_ms + clip.duration() {
+            return Err("The freeze point must be inside the clip".into());
+        }
+        let local = at_ms - clip.position_ms;
+        let asset = p
+            .assets
+            .iter()
+            .find(|a| a.id == clip.asset_id)
+            .ok_or("Unknown asset")?;
+        let source = clip
+            .source_at(local)
+            .min(asset.duration_ms.saturating_sub(1));
+        blyacut_engine::studio::extract_frame(asset, source, png)?;
+        let still = blyacut_engine::probe(png)?;
+        let still_id = still.id.clone();
+        let (track_id, effects) = (main.id.clone(), clip.effects.clone());
+        let imported = self.import_at(still, snapshot.revision)?;
+        let freeze = id();
+        let mut edits = vec![];
+        // Split inside the clip; at an edge the still goes before or after it.
+        let position = if local == 0 {
+            index
+        } else if local >= clip.duration() {
+            index + 1
+        } else {
+            edits.push(Edit::SplitClip {
+                clip_id: clip_id.into(),
+                position_ms: at_ms,
+                new_clip_id: id(),
+            });
+            index + 1
+        };
+        edits.extend([
+            Edit::Append {
+                asset_id: still_id,
+                clip_id: freeze.clone(),
+                track_id,
+            },
+            Edit::TrimClip {
+                clip_id: freeze.clone(),
+                start_ms: 0,
+                end_ms: duration_ms,
+            },
+            Edit::ReorderClip {
+                clip_id: freeze.clone(),
+                index: position,
+            },
+            Edit::SetEffects {
+                clip_id: freeze.clone(),
+                effects,
+            },
+        ]);
+        Ok((self.apply(&edits, imported.revision)?, freeze))
+    }
     pub fn render_job(&self) -> Result<Option<RenderJob>> {
         Ok(self
             .job

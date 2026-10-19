@@ -13,6 +13,7 @@ import type {
   TransitionKind,
 } from "../types";
 import { isOverlayTrack, isVideoStep } from "../types";
+import { clipLength } from "../timeline-gesture";
 export const useEditor = defineStore("editor", () => {
   const project = ref<Project>();
   const selected = ref("");
@@ -29,7 +30,7 @@ export const useEditor = defineStore("editor", () => {
     Math.max(
       0,
       ...(project.value?.tracks.flatMap((t) =>
-        t.clips.map((c) => c.position_ms + c.source_end_ms - c.source_start_ms),
+        t.clips.map((c) => c.position_ms + clipLength(c)),
       ) ?? []),
     ),
   );
@@ -157,7 +158,7 @@ export const useEditor = defineStore("editor", () => {
         isOverlayTrack(p, t) &&
         !t.clips.some(
           (c) =>
-            start < c.position_ms + c.source_end_ms - c.source_start_ms &&
+            start < c.position_ms + clipLength(c) &&
             start + length > c.position_ms,
         ),
     );
@@ -220,6 +221,42 @@ export const useEditor = defineStore("editor", () => {
     if (handles)
       error.value = `Для перехода ${durationMs / 1000} с нужно ${Number(handles[1]) / 1000} с исходника после конца предыдущего клипа и ${Number(handles[2]) / 1000} с до начала этого. Обрежьте клипы (тяните края) или сократите переход.`;
   }
+  async function setSpeed(
+    clipId: string,
+    speedMilli: number,
+    reverse: boolean,
+  ) {
+    await edit({
+      operation: "set_speed",
+      clip_id: clipId,
+      speed_milli: speedMilli,
+      reverse,
+    });
+  }
+  /** Hold the frame under the playhead (main track) for `durationMs`. */
+  async function freezeFrame(durationMs = 2000) {
+    const main = project.value?.tracks.find((t) => t.kind === "video");
+    const clip = main?.clips.find(
+      (c) =>
+        playhead.value >= c.position_ms &&
+        playhead.value <= c.position_ms + clipLength(c),
+    );
+    if (!clip) {
+      error.value = "Поставьте плейхед на клип главной видеодорожки";
+      return;
+    }
+    playing.value = false;
+    await guard(async () => {
+      accept(
+        await invoke<Snapshot>("freeze_frame", {
+          clipId: clip.id,
+          atMs: Math.round(playhead.value),
+          durationMs,
+        }),
+      );
+      dirty.value = true;
+    });
+  }
   async function setSettings(settings: Settings) {
     await edit({ operation: "set_settings", settings });
   }
@@ -279,7 +316,7 @@ export const useEditor = defineStore("editor", () => {
     const c = (selectionTrack.value?.clips ?? videoClips.value).find(
       (c) =>
         playhead.value > c.position_ms &&
-        playhead.value < c.position_ms + c.source_end_ms - c.source_start_ms,
+        playhead.value < c.position_ms + clipLength(c),
     );
     if (c)
       await edit({
@@ -436,6 +473,8 @@ export const useEditor = defineStore("editor", () => {
     placeOverlay,
     setTransition,
     setSettings,
+    setSpeed,
+    freezeFrame,
     draftTransform,
     addVideoTrack,
     createTextOverlay,

@@ -18,6 +18,8 @@ fn clip() -> Clip {
         effects: vec![],
         transform: None,
         transition_in: None,
+        speed_milli: 1000,
+        reverse: false,
     }
 }
 

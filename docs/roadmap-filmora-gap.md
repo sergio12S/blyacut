@@ -22,7 +22,7 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 | Titles | 200+ animated templates, text editor | Still title cards (agents only) | **P1**: title tab in UI, then text overlay |
 | Multiple video tracks / PiP / overlays | ✔ | ✔ overlay tracks with position/scale/opacity | — |
 | Transitions | 100+ in categories | ✔ 20 kinds, handle-based, length-preserving | more kinds, monitor preview |
-| Speed, reverse, freeze frame, speed curves | ✔ | — | P2 |
+| Speed, reverse, freeze frame, speed curves | ✔ | ✔ 0.25×–4×, reverse, freeze frame | speed curves |
 | Keyframes (position/scale/opacity/volume) | ✔ | — | P2 |
 | Crop/scale/position | ✔ | ✔ for overlays; crop-to-fill for the frame | per-clip crop |
 | Auto subtitles (speech-to-text) | ✔ | Planned (whisper.cpp) | P2 |
@@ -38,7 +38,7 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 
 **Phase 2 — composition (done: overlay tracks, PiP, stills, legible text over video, 20 transitions, format presets incl. vertical crop-to-fill).** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
 
-**Phase 3 — motion and time.** Speed/reverse/freeze, keyframes, ducking, whisper.cpp subtitles, timeline thumbnails and waveforms.
+**Phase 3 — motion and time (started: speed, reverse, freeze frame).** Speed/reverse/freeze, keyframes, ducking, whisper.cpp subtitles, timeline thumbnails and waveforms.
 
 Each phase keeps the rule that UI and agents share one Rust edit model: every new capability is an `Edit` operation and an MCP tool at the same time.
 

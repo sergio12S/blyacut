@@ -26,7 +26,7 @@ try {
     { stdio: "inherit" },
   );
   writeFileSync(join(out, "package.json"), '{"type":"module"}');
-  const { planGesture, snapPosition, frameTime, clipHitMode } = await import(
+  const { planGesture, snapPosition, frameTime, clipHitMode, clipLength, sourceAt } = await import(
     pathToFileURL(join(out, "timeline-gesture.js"))
   );
   const clip = (id, position, start, end) => ({
@@ -183,6 +183,18 @@ try {
     assert.equal(move.label, "Move");
     assert.equal(move.placements.o2.position, 4500);
     assert.equal(move.error, undefined);
+  });
+  test("Speed and reverse map timeline length and source time", () => {
+    const fast = { ...clip("f", 0, 1000, 5000), speed_milli: 2000 };
+    assert.equal(clipLength(fast), 2000);
+    assert.equal(sourceAt(fast, 500), 2000);
+    const back = { ...clip("r", 0, 1000, 5000), reverse: true };
+    assert.equal(sourceAt(back, 1000), 4000);
+    const p = structuredClone(project);
+    p.tracks[0].clips[0] = { ...p.tracks[0].clips[0], speed_milli: 2000 };
+    const refused = planGesture(p, "v1", "trim-end", -100, "v", opts);
+    assert.match(refused.error, /инспекторе/);
+    assert.equal(planGesture(p, "v1", "move", 0, "v", opts).error, undefined);
   });
   test("Trim cannot extend past source duration or before source zero", () => {
     assert.equal(plan("v2", "trim-end", 50000, "v").placements.v2.end, 10000);

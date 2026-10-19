@@ -77,7 +77,7 @@ pub fn preview_frame(project: &Project, time_ms: u64, out: &Path, width: u32) ->
             if !asset.still {
                 args.extend([
                     "-ss".into(),
-                    sec(clip.source_start_ms + time_ms - clip.position_ms),
+                    sec(clip.source_at(time_ms - clip.position_ms)),
                 ]);
             }
             args.extend(["-i".into(), asset.path.to_string_lossy().into()]);
@@ -145,12 +145,21 @@ fn main_frame(project: &Project, time_ms: u64, out: &Path, width: u32) -> Result
                 return Err(format!("Missing media: {}", asset.path.display()));
             }
             let mut chain = normalize_filter(project);
+            if let Some(timing) = crate::video_timing(c) {
+                chain = format!("{timing},{chain}");
+            }
             let effects = video_effect_filters(c);
             if !effects.is_empty() {
                 chain = format!("{chain},{effects},format=yuv420p");
             }
             // Decode from the clip start so fades and trails see the same history as export.
-            args.extend(crate::media_input(project, asset, c.source_start_ms));
+            let mut input = crate::media_input(project, asset, c.source_start_ms);
+            if !asset.still {
+                // Read only the clip's range so `reverse` buffers a bounded amount.
+                let at = input.len() - 2;
+                input.splice(at..at, ["-t".to_string(), sec(c.span())]);
+            }
+            args.extend(input);
             args.extend([
                 "-vf".into(),
                 format!("{chain},scale={width}:{height}"),
@@ -160,6 +169,36 @@ fn main_frame(project: &Project, time_ms: u64, out: &Path, width: u32) -> Result
         }
     }
     args.extend(["-frames:v".into(), "1".into(), out.to_string_lossy().into()]);
+    ffmpeg(&args).map(|_| ())
+}
+
+/// The exact source frame at `source_ms`, as a new PNG (no effects; the caller copies them).
+pub fn extract_frame(asset: &blyacut_core::Asset, source_ms: u64, out: &Path) -> Result<()> {
+    new_file(out, "png")?;
+    if asset.width == 0 {
+        return Err("Audio has no frame to freeze".into());
+    }
+    let mut args: Vec<String> = [
+        "-nostdin",
+        "-v",
+        "error",
+        "-n",
+        "-protocol_whitelist",
+        "file,pipe",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    if !asset.still {
+        args.extend(["-ss".into(), sec(source_ms)]);
+    }
+    args.extend([
+        "-i".into(),
+        asset.path.to_string_lossy().into(),
+        "-frames:v".into(),
+        "1".into(),
+        out.to_string_lossy().into(),
+    ]);
     ffmpeg(&args).map(|_| ())
 }
 

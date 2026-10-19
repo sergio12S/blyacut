@@ -14,8 +14,10 @@ import LibraryPanel from "./components/LibraryPanel.vue";
 import TimecodeField from "./components/TimecodeField.vue";
 import TransformControls from "./components/TransformControls.vue";
 import TransitionControl from "./components/TransitionControl.vue";
+import SpeedControl from "./components/SpeedControl.vue";
 import type { Snapshot } from "./types";
 import { isOverlayTrack, time } from "./types";
+import { clipLength } from "./timeline-gesture";
 const e = useEditor();
 const exporting = ref(false),
   progress = ref(0),
@@ -363,13 +365,14 @@ async function render() {
             />
             <TimecodeField
               label="Длительность"
-              :value="e.selection.source_end_ms - e.selection.source_start_ms"
+              :value="clipLength(e.selection)"
               readonly
             />
           </div>
           <p class="muted">Enter — применить · ↑/↓ — ±0,1 с (⇧ ±1 с)</p>
           <TransformControls v-if="overlaySelected" />
           <TransitionControl v-else />
+          <SpeedControl />
           <div class="clip-actions">
             <button title="S" @click="e.split()">✂ Разрезать</button
             ><button class="danger" title="⌫" @click="e.remove()">

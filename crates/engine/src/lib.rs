@@ -202,10 +202,18 @@ fn overlay_args(
         let input = i + 1;
         // -t applies to the input that follows; stills need it to end.
         let at = args.len() - 2;
-        args.splice(at..at, ["-t".to_string(), sec(clip.duration())]);
+        let read = if asset.still {
+            clip.duration()
+        } else {
+            clip.span()
+        };
+        args.splice(at..at, ["-t".to_string(), sec(read)]);
         let (from, to) = (clip.position_ms, clip.position_ms + clip.duration());
+        let timing = video_timing(clip)
+            .map(|t| format!("{t},"))
+            .unwrap_or_default();
         graph.push(format!(
-            "[{input}:v]{},setpts=PTS-STARTPTS+{}/TB[o{input}]",
+            "[{input}:v]{timing}{},setpts=PTS-STARTPTS+{}/TB[o{input}]",
             overlay_layer(project, clip),
             sec(from)
         ));
@@ -263,6 +271,46 @@ pub(crate) fn normalize_filter(project: &Project) -> String {
         s.fps_num, s.fps_den
     )
 }
+/// Picture retiming for a clip: `reverse` then `setpts` for speed (before normalization).
+pub fn video_timing(clip: &blyacut_core::Clip) -> Option<String> {
+    let mut parts = vec![];
+    if clip.reverse {
+        parts.push("reverse".to_string());
+    }
+    if clip.speed_milli != 1000 {
+        parts.push(format!(
+            "setpts=PTS*{:.6}",
+            1000.0 / clip.speed_milli as f64
+        ));
+    }
+    (!parts.is_empty()).then(|| parts.join(","))
+}
+/// Sound retiming: `areverse`, then `atempo` steps kept inside its 0.5–2.0 sweet spot.
+pub fn audio_timing(clip: &blyacut_core::Clip) -> Option<String> {
+    let mut parts = vec![];
+    if clip.reverse {
+        parts.push("areverse".to_string());
+    }
+    let mut tempo = clip.speed_milli as f64 / 1000.0;
+    while tempo > 2.0 {
+        parts.push("atempo=2".into());
+        tempo /= 2.0;
+    }
+    while tempo < 0.5 {
+        parts.push("atempo=0.5".into());
+        tempo /= 0.5;
+    }
+    if (tempo - 1.0).abs() > 1e-6 {
+        parts.push(format!("atempo={tempo:.6}"));
+    }
+    (!parts.is_empty()).then(|| parts.join(","))
+}
+/// Insert `-t <source span>` before the first `-i` so retimed inputs read only their range.
+fn limit_first_input(args: &mut Vec<String>, clip: &blyacut_core::Clip) {
+    if let Some(i) = args.iter().position(|a| a == "-i") {
+        args.splice(i..i, ["-t".to_string(), sec(clip.span())]);
+    }
+}
 /// Main-track clip segment: normalized picture with effects, linked audio with its filters.
 fn clip_args(
     project: &Project,
@@ -271,8 +319,17 @@ fn clip_args(
     out: &Path,
 ) -> Vec<String> {
     let mut args = segment_args(project, asset, clip.source_start_ms, clip.duration(), out);
+    if !asset.still {
+        limit_first_input(&mut args, clip);
+    }
     if let Some(i) = args.iter().position(|a| a == "-af") {
-        args[i + 1] = format!("aresample=48000,apad,{}", audio_filter(clip));
+        let timing = audio_timing(clip)
+            .map(|t| format!("{t},"))
+            .unwrap_or_default();
+        args[i + 1] = format!("aresample=48000,{timing}apad,{}", audio_filter(clip));
+    }
+    if let (Some(timing), Some(i)) = (video_timing(clip), args.iter().position(|a| a == "-vf")) {
+        args[i + 1] = format!("{timing},{}", args[i + 1]);
     }
     let visual = video_effect_filters(clip);
     if !visual.is_empty() {
@@ -791,11 +848,12 @@ pub fn mix_args(
             "-ss".into(),
             sec(c.source_start_ms),
             "-t".into(),
-            sec(c.duration()),
+            sec(c.span()),
             "-i".into(),
             a.path.to_string_lossy().into(),
         ]);
-        filters.push(format!("[{}:a:0]asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,{},atrim=duration={},adelay={}|{}[a{}]",i+1,audio_filter(c),sec(c.duration()),c.position_ms,c.position_ms,i));
+        let timing = audio_timing(c).map(|t| format!("{t},")).unwrap_or_default();
+        filters.push(format!("[{}:a:0]asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,{timing}{},atrim=duration={},adelay={}|{}[a{}]",i+1,audio_filter(c),sec(c.duration()),c.position_ms,c.position_ms,i));
         inputs.push_str(&format!("[a{i}]"));
     }
     filters.push(format!("{}amix=inputs={}:duration=first:dropout_transition=0:normalize=0,alimiter=limit=1:level=0:latency=1[mixed]",inputs,clips.len()+1));

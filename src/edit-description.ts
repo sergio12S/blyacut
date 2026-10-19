@@ -39,6 +39,8 @@ export function describeEdit(
       const s = edit.settings;
       return `Формат ${s.width}×${s.height}, ${Math.round((s.fps_num / s.fps_den) * 100) / 100} к/с${s.fill ? ", заполнить кадр" : ""}`;
     }
+    case "set_speed":
+      return `Скорость «${clip(edit.clip_id)}»: ${edit.speed_milli / 1000}×${edit.reverse ? ", в обратную сторону" : ""}`;
     case "set_transition":
       return edit.transition
         ? `Переход «${TRANSITION_NAMES[edit.transition.kind]}» ${edit.transition.duration_ms / 1000} с перед «${clip(edit.clip_id)}»`

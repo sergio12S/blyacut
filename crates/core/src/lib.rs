@@ -60,6 +60,15 @@ pub struct Clip {
     /// Transition from the previous main-track clip into this one, centred on the cut.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transition_in: Option<Transition>,
+    /// Playback speed in thousandths (250 = 0.25×, 4000 = 4×); pitch is preserved.
+    #[serde(default = "unity", skip_serializing_if = "is_unity")]
+    pub speed_milli: u16,
+    /// Play the source range backwards.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reverse: bool,
+}
+fn is_unity(v: &u16) -> bool {
+    *v == 1000
 }
 /// Visual transitions (FFmpeg `xfade` names); linked audio always crossfades.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -156,8 +165,29 @@ impl Transform {
     }
 }
 impl Clip {
-    pub fn duration(&self) -> u64 {
+    /// Length of the source range used.
+    pub fn span(&self) -> u64 {
         self.source_end_ms.saturating_sub(self.source_start_ms)
+    }
+    /// Length on the timeline, after speed.
+    pub fn duration(&self) -> u64 {
+        if self.speed_milli == 1000 {
+            return self.span();
+        }
+        (self.span() * 1000 + self.speed_milli as u64 / 2) / self.speed_milli.max(1) as u64
+    }
+    /// Source time shown `local_ms` into the clip on the timeline.
+    pub fn source_at(&self, local_ms: u64) -> u64 {
+        let offset = (local_ms * self.speed_milli as u64 / 1000).min(self.span());
+        if self.reverse {
+            self.source_end_ms - offset
+        } else {
+            self.source_start_ms + offset
+        }
+    }
+    /// Normal-speed, forward clips are the only ones transitions can join (for now).
+    pub fn is_retimed(&self) -> bool {
+        self.speed_milli != 1000 || self.reverse
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -366,6 +396,12 @@ impl Project {
                         );
                     }
                 }
+                if !(250..=4000).contains(&c.speed_milli) {
+                    return Err("Clip speed must be 250..=4000 (0.25×–4×)".into());
+                }
+                if a.still && c.is_retimed() {
+                    return Err("Still images have no speed or direction".into());
+                }
                 if c.gain_milli > 1000
                     || c.fade_in_ms > c.duration()
                     || c.fade_out_ms > c.duration() - c.fade_in_ms
@@ -391,6 +427,9 @@ impl Project {
                     }) else {
                         return Err("A transition needs the clip to directly follow another main-track clip".into());
                     };
+                    if prev.is_retimed() || c.is_retimed() {
+                        return Err("Transitions next to speed-changed or reversed clips are not supported yet".into());
+                    }
                     let (before, after) = transition_halves(tr);
                     if (!prev_asset.still && prev.source_end_ms + after > prev_asset.duration_ms)
                         || (!a.still && c.source_start_ms < before)
@@ -430,6 +469,13 @@ pub enum Edit {
         /// Trim the outgoing end / incoming start just enough to create the needed handles.
         #[serde(default)]
         make_room: bool,
+    },
+    /// Retime a clip: speed in thousandths (250..=4000) and direction.
+    SetSpeed {
+        clip_id: String,
+        speed_milli: u16,
+        #[serde(default)]
+        reverse: bool,
     },
     /// Place an overlay clip; `null` resets it to fill the frame.
     SetTransform {
@@ -590,6 +636,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             effects: vec![],
             transform: None,
             transition_in: None,
+            speed_milli: 1000,
+            reverse: false,
         });
     } else {
         let cid = match &edit {
@@ -600,7 +648,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             | Edit::SetAudio { clip_id, .. }
             | Edit::SetEffects { clip_id, .. }
             | Edit::SetTransform { clip_id, .. }
-            | Edit::SetTransition { clip_id, .. } => clip_id,
+            | Edit::SetTransition { clip_id, .. }
+            | Edit::SetSpeed { clip_id, .. } => clip_id,
             _ => unreachable!(),
         };
         let t = p
@@ -629,23 +678,44 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                 if offset < c.fade_in_ms || c.duration() - offset < c.fade_out_ms {
                     return Err("Cannot split inside a fade; adjust or clear the fade first".into());
                 }
-                let cut = c.source_start_ms + offset;
-                let right = Clip {
+                // The source point shown at the cut; reversed clips consume the source backwards.
+                let cut = c.source_at(offset);
+                let (right_start, right_end) = if c.reverse {
+                    (c.source_start_ms, cut)
+                } else {
+                    (cut, c.source_end_ms)
+                };
+                let mut right = Clip {
                     id: new_clip_id,
                     asset_id: c.asset_id.clone(),
                     position_ms,
-                    source_start_ms: cut,
-                    source_end_ms: c.source_end_ms,
+                    source_start_ms: right_start,
+                    source_end_ms: right_end,
                     gain_milli: c.gain_milli,
                     fade_in_ms: 0,
-                    fade_out_ms: c.fade_out_ms.min(c.source_end_ms - cut),
+                    fade_out_ms: c.fade_out_ms,
                     effects: c.effects.clone(),
                     transform: c.transform,
                     transition_in: None,
+                    speed_milli: c.speed_milli,
+                    reverse: c.reverse,
                 };
-                c.source_end_ms = cut;
+                if right.source_start_ms >= right.source_end_ms
+                    || cut == c.source_start_ms
+                    || cut == c.source_end_ms
+                {
+                    return Err("Split must be inside the clip (timeline milliseconds)".into());
+                }
+                if c.reverse {
+                    c.source_start_ms = cut;
+                } else {
+                    c.source_end_ms = cut;
+                }
                 c.fade_in_ms = c.fade_in_ms.min(c.duration());
                 c.fade_out_ms = 0;
+                // Speed rounding: the right part starts exactly where the left one now ends.
+                right.position_ms = c.position_ms + c.duration();
+                right.fade_out_ms = right.fade_out_ms.min(right.duration());
                 t.clips.insert(i + 1, right);
             }
             Edit::TrimClip {
@@ -672,6 +742,24 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             }
             Edit::SetTransform { transform, .. } => {
                 t.clips[i].transform = transform;
+            }
+            Edit::SetSpeed {
+                speed_milli,
+                reverse,
+                ..
+            } => {
+                let c = &mut t.clips[i];
+                c.speed_milli = speed_milli;
+                c.reverse = reverse;
+                c.fade_in_ms = c.fade_in_ms.min(c.duration());
+                c.fade_out_ms = c.fade_out_ms.min(c.duration() - c.fade_in_ms);
+                if ripples {
+                    ripple(t);
+                } else if let Some(next) = t.clips.get(i + 1) {
+                    if t.clips[i].position_ms + t.clips[i].duration() > next.position_ms {
+                        return Err("Slower clip would overlap the next clip on this track".into());
+                    }
+                }
             }
             Edit::SetTransition {
                 transition,

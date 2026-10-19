@@ -309,3 +309,81 @@ fn pointer_left_trim_batches_preserve_neighbour_and_undo_once() {
         before.project
     );
 }
+
+#[test]
+fn freeze_frame_inserts_a_still_and_ripples() {
+    use std::process::Command;
+    let dir = std::env::temp_dir().join(format!("blyacut-freeze-{}", blyacut_core::id()));
+    std::fs::create_dir(&dir).unwrap();
+    let video = dir.join("ramp.mp4");
+    assert!(Command::new(blyacut_engine::binary("ffmpeg"))
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=160x90:r=30:d=4,geq=lum='16+T*50':cb=128:cr=128",
+            "-c:v",
+            "libx264"
+        ])
+        .arg(&video)
+        .status()
+        .unwrap()
+        .success());
+    let session = Session::default();
+    let asset = blyacut_engine::probe(&video).unwrap();
+    let aid = asset.id.clone();
+    session.import(asset).unwrap();
+    let vt = session.snapshot().unwrap().project.tracks[0].id.clone();
+    session
+        .edit(Edit::Append {
+            asset_id: aid,
+            clip_id: "c".into(),
+            track_id: vt,
+        })
+        .unwrap();
+    let (snapshot, still) = session
+        .freeze_frame("c", 1000, 1500, &dir.join("freeze.png"))
+        .unwrap();
+    let clips = &snapshot.project.tracks[0].clips;
+    assert_eq!(clips.len(), 3);
+    assert_eq!(clips[1].id, still);
+    assert_eq!((clips[1].position_ms, clips[1].duration()), (1000, 1500));
+    assert_eq!(clips[2].position_ms, 2500, "rest of the clip ripples");
+    assert_eq!(snapshot.project.duration(), 5500);
+    let out = dir.join("freeze.mp4");
+    blyacut_engine::render(
+        &snapshot.project,
+        &out,
+        std::sync::Arc::new(Default::default()),
+        |_| {},
+    )
+    .unwrap();
+    let luma = |t: f64| {
+        Command::new(blyacut_engine::binary("ffmpeg"))
+            .args(["-v", "error", "-ss", &t.to_string(), "-i"])
+            .arg(&out)
+            .args([
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale=1:1,format=gray",
+                "-f",
+                "rawvideo",
+                "pipe:1",
+            ])
+            .output()
+            .unwrap()
+            .stdout[0] as f64
+    };
+    // Held frame: the same source moment (≈1 s) at 1.3 s and 2.3 s, then motion resumes.
+    assert!(
+        (luma(1.3) - luma(2.3)).abs() < 6.0,
+        "{} vs {}",
+        luma(1.3),
+        luma(2.3)
+    );
+    assert!(luma(3.5) > luma(2.3) + 30.0);
+    std::fs::remove_dir_all(dir).unwrap();
+}

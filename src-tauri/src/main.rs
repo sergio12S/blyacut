@@ -175,6 +175,30 @@ async fn create_text_overlay(
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn freeze_frame(
+    app: tauri::AppHandle,
+    s: State<'_, Desktop>,
+    clip_id: String,
+    at_ms: u64,
+    duration_ms: u64,
+) -> Result<Snapshot> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("titles");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let session = s.session.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let png = dir.join(format!("freeze-{}.png", blyacut_core::id()));
+        session
+            .freeze_frame(&clip_id, at_ms, duration_ms, &png)
+            .map(|(snapshot, _)| snapshot)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 fn builtin_effect_recipes() -> Vec<blyacut_core::effects::EffectRecipe> {
     blyacut_core::effects::builtin_recipes()
 }
@@ -264,6 +288,7 @@ fn main() {
         builtin_effect_recipes,
         create_title_card,
         create_text_overlay,
+        freeze_frame,
         get_proposal,
         resolve_proposal,
         start_agent,
@@ -287,6 +312,7 @@ fn main() {
         builtin_effect_recipes,
         create_title_card,
         create_text_overlay,
+        freeze_frame,
         get_proposal,
         resolve_proposal
     ]);

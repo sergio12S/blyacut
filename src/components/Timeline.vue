@@ -384,9 +384,7 @@ function position(c: Clip) {
                 }"
                 :style="{
                   left: (position(c) / 1000) * zoom + 'px',
-                  width:
-                    ((c.source_end_ms - c.source_start_ms) / 1000) * zoom +
-                    'px',
+                  width: (clipLength(c) / 1000) * zoom + 'px',
                 }"
                 :data-clip-id="c.id"
                 :aria-label="`${e.project?.assets.find((a) => a.id === c.asset_id)?.name}, ${track.name}, ${time(c.position_ms)}, длительность ${time(clipLength(c))}`"
@@ -423,7 +421,12 @@ function position(c: Clip) {
                   e.project?.assets.find((a) => a.id === c.asset_id)?.name
                 }}</span
                 ><span class="clip-duration"
-                  >{{ time(c.source_end_ms - c.source_start_ms) }} ·
+                  >{{ time(clipLength(c))
+                  }}{{
+                    (c.speed_milli ?? 1000) !== 1000
+                      ? ` · ${(c.speed_milli ?? 1000) / 1000}×`
+                      : ""
+                  }}{{ c.reverse ? " · ↺" : "" }} ·
                   {{ c.gain_milli / 10 }}%</span
                 >
                 <div class="clip-stripes" />

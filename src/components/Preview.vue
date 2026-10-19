@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEditor } from "../stores/editor";
 import { FULL_FRAME, isOverlayTrack, time, type Clip } from "../types";
+import { clipLength, sourceAt } from "../timeline-gesture";
 import {
   AudioEffectPreview,
   previewIsApproximate,
@@ -25,8 +26,7 @@ function assetSource(id: string) {
   return a ? convertFileSrc(a.path) : "";
 }
 const activeAt = (c: Clip) =>
-  e.playhead >= c.position_ms &&
-  e.playhead < c.position_ms + c.source_end_ms - c.source_start_ms;
+  e.playhead >= c.position_ms && e.playhead < c.position_ms + clipLength(c);
 const asset = (c: Clip) => e.project?.assets.find((a) => a.id === c.asset_id);
 const mainTrack = computed(() =>
   e.project?.tracks.find((t) => t.kind === "video"),
@@ -97,7 +97,9 @@ function syncLayers() {
   for (const c of overlays.value) {
     const v = layerVideos.get(c.id);
     if (!v || v.readyState < 1) continue;
-    const desired = (c.source_start_ms + e.playhead - c.position_ms) / 1000;
+    const desired = sourceAt(c, e.playhead - c.position_ms) / 1000;
+    const rate = (c.speed_milli ?? 1000) / 1000;
+    if (Math.abs(v.playbackRate - rate) > 1e-3) v.playbackRate = rate;
     if (!v.seeking && Math.abs(v.currentTime - desired) > 0.2)
       v.currentTime = desired;
     if (e.playing && v.paused) void v.play().catch(() => {});
@@ -111,7 +113,7 @@ const hasNonCssEffects = computed(() =>
   previewIsApproximate(clip.value?.effects ?? []),
 );
 function volume(c: Clip) {
-  const duration = c.source_end_ms - c.source_start_ms,
+  const duration = clipLength(c),
     local = e.playhead - c.position_ms;
   let gain = c.gain_milli / 1000;
   if (c.fade_in_ms) gain *= Math.min(1, local / c.fade_in_ms);
@@ -120,15 +122,25 @@ function volume(c: Clip) {
 }
 function syncMedia(v: HTMLMediaElement, c: Clip, force: boolean) {
   const local = e.playhead - c.position_ms,
-    active = local >= 0 && local < c.source_end_ms - c.source_start_ms;
+    active = local >= 0 && local < clipLength(c);
   if (!active) {
     v.pause();
     effectAudio.silence(v);
     return;
   }
   if (v.readyState < 1) return;
-  const desired = (c.source_start_ms + local) / 1000;
-  const jumped = force || Math.abs(v.currentTime - desired) > 0.18;
+  const desired = sourceAt(c, local) / 1000;
+  if (c.reverse) {
+    // Media elements cannot play backwards: scrub paused frames, keep it silent.
+    v.pause();
+    effectAudio.silence(v);
+    if (!v.seeking && (force || Math.abs(v.currentTime - desired) > 0.04))
+      v.currentTime = desired;
+    return;
+  }
+  const rate = (c.speed_milli ?? 1000) / 1000;
+  if (Math.abs(v.playbackRate - rate) > 1e-3) v.playbackRate = rate;
+  const jumped = force || Math.abs(v.currentTime - desired) > 0.18 * rate;
   if (!v.seeking && jumped) v.currentTime = desired;
   try {
     effectAudio.update(v, c, volume(c), e.playing, jumped);

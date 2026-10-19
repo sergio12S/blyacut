@@ -331,6 +331,64 @@ fn agent_layers_text_and_picture_in_picture() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn agent_retimes_and_freezes() {
+    let dir = std::env::temp_dir()
+        .join(format!("blyacut-speed-{}", blyacut_core::id()))
+        .canonicalize_or_create();
+    let p = |name: &str| dir.join(name).to_string_lossy().to_string();
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=s=320x180:r=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine",
+        "-t",
+        "4",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        &p("clip.mp4"),
+    ]);
+    let mut a = Agent::start(&dir, true);
+    let imported = a.ok("import_media", json!({"path": p("clip.mp4")}));
+    let asset = imported["project"]["assets"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let vt = imported["project"]["tracks"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let rev = imported["revision"].as_u64().unwrap();
+    let fast = a.ok(
+        "apply_edits",
+        json!({"expected_revision": rev, "edits": [
+            {"operation":"append","asset_id":asset,"clip_id":"c","track_id":vt},
+            {"operation":"set_speed","clip_id":"c","speed_milli":2000}
+        ]}),
+    );
+    assert_eq!(
+        fast["project"]["tracks"][0]["clips"][0]["speed_milli"],
+        2000
+    );
+    let frozen = a.ok(
+        "freeze_frame",
+        json!({"clip_id":"c","at_ms":1000,"duration_ms":1500,"output_path":p("hold.png")}),
+    );
+    let clips = frozen["project"]["tracks"][0]["clips"].as_array().unwrap();
+    assert_eq!(clips.len(), 3);
+    assert_eq!(clips[1]["id"], frozen["clip_id"]);
+    assert_eq!(clips[2]["position_ms"], 2500);
+    drop(a.input);
+    assert!(a.child.wait().unwrap().success());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 trait Create {
     fn canonicalize_or_create(self) -> std::path::PathBuf;
 }

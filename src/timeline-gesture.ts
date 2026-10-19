@@ -24,8 +24,22 @@ export interface GesturePlan {
   label: "Move" | "Insert" | "Ripple trim" | "Trim";
 }
 const MAX_TIME = 604800000;
-export const clipLength = (clip: Clip) =>
-  clip.source_end_ms - clip.source_start_ms;
+/** Length on the timeline, after speed (mirrors Rust `Clip::duration`). */
+export const clipLength = (clip: Clip) => {
+  const span = clip.source_end_ms - clip.source_start_ms;
+  const speed = clip.speed_milli ?? 1000;
+  return speed === 1000 ? span : Math.round((span * 1000) / speed);
+};
+/** Source time shown `local` ms into the clip (mirrors Rust `Clip::source_at`). */
+export const sourceAt = (clip: Clip, local: number) => {
+  const offset = Math.min(
+    (local * (clip.speed_milli ?? 1000)) / 1000,
+    clip.source_end_ms - clip.source_start_ms,
+  );
+  return clip.reverse
+    ? clip.source_end_ms - offset
+    : clip.source_start_ms + offset;
+};
 export function frameTime(ms: number, settings: Project["settings"]): number {
   return Math.round(
     (Math.round((ms * settings.fps_num) / (1000 * settings.fps_den)) *
@@ -87,6 +101,12 @@ export function planGesture(
   ) {
     return { ...plan, error: "Отпустите на дорожке того же типа" };
   }
+  if (mode !== "move" && ((clip.speed_milli ?? 1000) !== 1000 || clip.reverse))
+    return {
+      ...plan,
+      error:
+        "Ускоренный или реверсный клип обрежьте в инспекторе (начало/конец в исходнике)",
+    };
   const original = {
     trackId: source.id,
     position: clip.position_ms,
@@ -115,11 +135,7 @@ export function planGesture(
     return Math.round(result.position);
   };
   if (mode === "move") {
-    if (
-      options.magnetic &&
-      source.id === target.id &&
-      ripples
-    ) {
+    if (options.magnetic && source.id === target.id && ripples) {
       plan.label = "Insert";
       const remaining = source.clips.filter((c) => c.id !== clipId);
       const center = clip.position_ms + delta + clipLength(clip) / 2;

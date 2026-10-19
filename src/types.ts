@@ -121,6 +121,9 @@ export interface Clip {
   transform?: Transform | null;
   /** Transition from the previous main-track clip, centred on the cut. */
   transition_in?: Transition | null;
+  /** Speed in thousandths (1000 = normal). */
+  speed_milli?: number;
+  reverse?: boolean;
 }
 export interface Track {
   id: string;
@@ -189,6 +192,12 @@ export type Edit =
   | { operation: "set_effects"; clip_id: string; effects: EffectRecipe[] }
   | { operation: "set_transform"; clip_id: string; transform: Transform | null }
   | { operation: "set_settings"; settings: Settings }
+  | {
+      operation: "set_speed";
+      clip_id: string;
+      speed_milli: number;
+      reverse: boolean;
+    }
   | {
       operation: "set_transition";
       clip_id: string;

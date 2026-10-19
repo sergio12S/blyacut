@@ -99,6 +99,14 @@ fn bottom() -> String {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Freeze {
+    clip_id: String,
+    at_ms: u64,
+    duration_ms: u64,
+    output_path: PathBuf,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ProjectFile {
     path: PathBuf,
 }
@@ -350,6 +358,17 @@ impl Gateway {
                 value["path"] = json!(path);
                 value["asset_id"] = json!(asset_id);
                 value["clip_id"] = json!(clip_id);
+                Ok(value)
+            }
+            "freeze_frame" => {
+                let a: Freeze = parse(args)?;
+                let png = self.new_file(&a.output_path, "png")?;
+                let (snapshot, clip_id) =
+                    self.session
+                        .freeze_frame(&a.clip_id, a.at_ms, a.duration_ms, &png)?;
+                let mut value = Self::with_warnings(snapshot);
+                value["clip_id"] = json!(clip_id);
+                value["path"] = json!(png);
                 Ok(value)
             }
             "save_project" => {

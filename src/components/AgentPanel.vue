@@ -5,6 +5,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEditor } from "../stores/editor";
+import { clipLength } from "../timeline-gesture";
 import {
   time,
   type AgentConnection,
@@ -117,9 +118,7 @@ async function resolve(accept: boolean) {
             Math.max(
               0,
               ...proposal.preview.tracks.flatMap((t) =>
-                t.clips.map(
-                  (c) => c.position_ms + c.source_end_ms - c.source_start_ms,
-                ),
+                t.clips.map((c) => c.position_ms + clipLength(c)),
               ),
             ),
           )

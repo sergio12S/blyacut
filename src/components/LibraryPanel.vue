@@ -22,9 +22,19 @@ const styles = [
 const titleText = ref("BlyaCut");
 const style = ref(0);
 const seconds = ref(3);
+const overlay = ref(false);
+const position = ref<"top" | "center" | "bottom">("bottom");
 function createTitle() {
   const [, text, background] = styles[style.value];
-  void e.createTitle(titleText.value, text, background, seconds.value * 1000);
+  if (overlay.value)
+    void e.createTextOverlay(
+      titleText.value,
+      text === "#111111" || text === "#18230C" ? background : text,
+      position.value,
+      seconds.value * 1000,
+    );
+  else
+    void e.createTitle(titleText.value, text, background, seconds.value * 1000);
 }
 </script>
 <template>
@@ -70,6 +80,17 @@ function createTitle() {
           >
             ＋
           </button>
+          <button
+            v-if="asset.width"
+            class="add"
+            :disabled="e.busy"
+            title="Поверх видео в позиции плейхеда (картинка в картинке, логотип)"
+            :aria-label="`Наложить ${asset.name} поверх видео`"
+            @click="e.placeOverlay(asset.id)"
+          >
+            ⧉
+          </button>
+          <span v-else />
         </div>
         <p v-if="!e.project?.assets.length" class="empty">
           Здесь появятся ваши файлы.<br />Видео · WAV · MP3 · M4A · FLAC
@@ -96,6 +117,22 @@ function createTitle() {
           Аа
         </button>
       </div>
+      <div class="mode" role="radiogroup" aria-label="Вид титра">
+        <button role="radio" :aria-checked="!overlay" @click="overlay = false">
+          Отдельный кадр
+        </button>
+        <button role="radio" :aria-checked="overlay" @click="overlay = true">
+          Поверх видео
+        </button>
+      </div>
+      <label v-if="overlay" class="field"
+        >Где
+        <select v-model="position">
+          <option value="top">Сверху</option>
+          <option value="center">По центру</option>
+          <option value="bottom">Снизу (субтитр)</option>
+        </select>
+      </label>
       <label class="field"
         >Длительность
         <select v-model.number="seconds">
@@ -109,11 +146,14 @@ function createTitle() {
         :disabled="e.busy || !titleText.trim()"
         @click="createTitle"
       >
-        Создать титр
+        {{ overlay ? "Наложить текст" : "Создать титр" }}
       </button>
       <p class="hint">
-        Титр встанет в конец видеодорожки. Добавьте ему «Появление из чёрного»
-        во вкладке «Эффекты».
+        {{
+          overlay
+            ? "Прозрачный текст с тенью встанет поверх видео в позиции плейхеда."
+            : "Титр встанет в конец видеодорожки. Добавьте ему «Появление из чёрного» во вкладке «Эффекты»."
+        }}
       </p>
     </div>
 
@@ -180,7 +220,7 @@ function createTitle() {
 }
 .media-row {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 28px;
+  grid-template-columns: 52px minmax(0, 1fr) 28px 28px;
   gap: 8px;
   align-items: center;
   padding: 5px;
@@ -283,6 +323,19 @@ select {
 }
 .create {
   width: 100%;
+}
+.mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.mode button {
+  padding: 6px 4px;
+  font-size: 12px;
+}
+.mode button[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 /* The gallery fills the library column instead of a fixed-height box. */
 .effects :deep(.effects-panel) {

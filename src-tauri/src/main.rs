@@ -137,6 +137,38 @@ async fn create_title_card(
     .await
     .map_err(|e| e.to_string())?
 }
+/// Transparent text PNG in the app data folder, imported as a still for an overlay track.
+#[tauri::command]
+async fn create_text_overlay(
+    app: tauri::AppHandle,
+    s: State<'_, Desktop>,
+    text: String,
+    text_color: String,
+    position: String,
+) -> Result<Snapshot> {
+    let center_y = match position.as_str() {
+        "top" => 0.15,
+        "center" => 0.5,
+        _ => 0.82,
+    };
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("titles");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let color = blyacut_engine::studio::parse_hex(&text_color)?;
+    let session = s.session.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let snapshot = session.snapshot()?;
+        let path = dir.join(format!("text-{}.png", blyacut_core::id()));
+        blyacut_engine::studio::text_overlay(&snapshot.project, &text, color, center_y, &path)?;
+        let asset = blyacut_engine::probe(&path)?;
+        session.import_at(asset, snapshot.revision)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 #[tauri::command]
 fn builtin_effect_recipes() -> Vec<blyacut_core::effects::EffectRecipe> {
     blyacut_core::effects::builtin_recipes()
@@ -226,6 +258,7 @@ fn main() {
         load_effect_recipes,
         builtin_effect_recipes,
         create_title_card,
+        create_text_overlay,
         get_proposal,
         resolve_proposal,
         start_agent,
@@ -248,6 +281,7 @@ fn main() {
         load_effect_recipes,
         builtin_effect_recipes,
         create_title_card,
+        create_text_overlay,
         get_proposal,
         resolve_proposal
     ]);

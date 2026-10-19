@@ -36,7 +36,7 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 
 **Phase 1 — interface (now).** Library tabs (Media · Titles · Effects) with drag onto clips; tabbed inspector (Clip · Audio · Effects) with timecode fields; one compact header with undo/redo and export progress; no hint row; consistent Russian UI; title cards from the UI.
 
-**Phase 2 — composition.** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
+**Phase 2 — composition (in progress: overlay tracks, PiP, stills and text over video are done).** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
 
 **Phase 3 — motion and time.** Speed/reverse/freeze, keyframes, ducking, whisper.cpp subtitles, timeline thumbnails and waveforms.
 

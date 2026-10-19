@@ -12,8 +12,9 @@ import ClipAudioControls from "./components/ClipAudioControls.vue";
 import EffectsPanel from "./components/EffectsPanel.vue";
 import LibraryPanel from "./components/LibraryPanel.vue";
 import TimecodeField from "./components/TimecodeField.vue";
+import TransformControls from "./components/TransformControls.vue";
 import type { Snapshot } from "./types";
-import { time } from "./types";
+import { isOverlayTrack, time } from "./types";
 const e = useEditor();
 const exporting = ref(false),
   progress = ref(0),
@@ -46,6 +47,9 @@ function dockKey(event: KeyboardEvent) {
   dock.value = ids[next];
   document.getElementById(`${dock.value}-tab`)?.focus();
 }
+const overlaySelected = computed(
+  () => !!e.selectionTrack && isOverlayTrack(e.project, e.selectionTrack),
+);
 const assetName = computed(
   () =>
     e.project?.assets.find((a) => a.id === e.selection?.asset_id)?.name ?? "",
@@ -64,7 +68,7 @@ function trim(startMs: number, endMs: number) {
   });
 }
 function key(ev: KeyboardEvent) {
-  if ((ev.target as HTMLElement).matches("input,textarea,select")) return;
+  if ((ev.target as Element | null)?.closest?.("input,textarea,select")) return;
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && ev.key === "s") {
     ev.preventDefault();
@@ -267,7 +271,9 @@ async function render() {
             {{
               e.selectionTrack?.kind === "audio"
                 ? "Звуковая дорожка · без сдвига соседей"
-                : "Видеодорожка · соседи сдвигаются"
+                : overlaySelected
+                  ? "Наложение · поверх главного видео, без звука"
+                  : "Главная видеодорожка · соседи сдвигаются"
             }}
           </p>
           <div class="paired-fields">
@@ -293,6 +299,7 @@ async function render() {
             />
           </div>
           <p class="muted">Enter — применить · ↑/↓ — ±0,1 с (⇧ ±1 с)</p>
+          <TransformControls v-if="overlaySelected" />
           <div class="clip-actions">
             <button title="S" @click="e.split()">✂ Разрезать</button
             ><button class="danger" title="⌫" @click="e.remove()">

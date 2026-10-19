@@ -70,6 +70,21 @@ fn yes() -> bool {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct TextOverlay {
+    text: String,
+    output_path: PathBuf,
+    #[serde(default = "bottom")]
+    position: String,
+    #[serde(default = "white")]
+    text_color: String,
+    #[serde(default = "yes")]
+    import: bool,
+}
+fn bottom() -> String {
+    "bottom".into()
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ProjectFile {
     path: PathBuf,
 }
@@ -261,6 +276,33 @@ impl Gateway {
                     &a.text,
                     a.duration_ms,
                     &style,
+                    &path,
+                )?;
+                if !a.import {
+                    return Ok(json!({"path":path}));
+                }
+                let asset = blyacut_engine::probe(&path)?;
+                let asset_id = asset.id.clone();
+                let mut value = Self::with_warnings(self.session.import_at(asset, s.revision)?);
+                value["path"] = json!(path);
+                value["asset_id"] = json!(asset_id);
+                Ok(value)
+            }
+            "create_text_overlay" => {
+                let a: TextOverlay = parse(args)?;
+                let path = self.new_file(&a.output_path, "png")?;
+                let center_y = match a.position.as_str() {
+                    "top" => 0.15,
+                    "center" => 0.5,
+                    "bottom" => 0.82,
+                    _ => return Err("position must be top, center or bottom".into()),
+                };
+                let s = self.session.snapshot()?;
+                blyacut_engine::studio::text_overlay(
+                    &s.project,
+                    &a.text,
+                    blyacut_engine::studio::parse_hex(&a.text_color)?,
+                    center_y,
                     &path,
                 )?;
                 if !a.import {

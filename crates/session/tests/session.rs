@@ -12,6 +12,7 @@ fn setup() -> (Arc<Session>, String) {
         width: 320,
         height: 180,
         has_audio: true,
+        still: false,
     })
     .unwrap();
     let track = s.snapshot().unwrap().project.tracks[0].id.clone();

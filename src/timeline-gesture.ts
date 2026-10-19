@@ -94,6 +94,9 @@ export function planGesture(
     end: clip.source_end_ms,
   };
   const next = { ...original };
+  // Only the main (first) video track is magnetic; audio and overlay tracks keep positions.
+  const ripples =
+    source.id === project.tracks.find((t) => t.kind === "video")?.id;
   plan.placements[clipId] = next;
   const targets = [
     0,
@@ -115,7 +118,7 @@ export function planGesture(
     if (
       options.magnetic &&
       source.id === target.id &&
-      source.kind === "video"
+      ripples
     ) {
       plan.label = "Insert";
       const remaining = source.clips.filter((c) => c.id !== clipId);
@@ -154,7 +157,7 @@ export function planGesture(
         },
       ];
   } else {
-    plan.label = source.kind === "video" ? "Ripple trim" : "Trim";
+    plan.label = ripples ? "Ripple trim" : "Trim";
     const asset = project.assets.find((a) => a.id === clip.asset_id)!;
     const minLength = Math.max(
       1,
@@ -165,18 +168,18 @@ export function planGesture(
       let change = frameTime(delta, project.settings);
       change =
         snap(
-          source.kind === "audio"
+          !ripples
             ? Math.max(0, clip.position_ms + change)
             : clip.position_ms + change,
           0,
         ) - clip.position_ms;
       change = Math.max(
         -clip.source_start_ms,
-        source.kind === "audio" ? -clip.position_ms : -clip.source_start_ms,
+        !ripples ? -clip.position_ms : -clip.source_start_ms,
         Math.min(clipLength(clip) - minLength, change),
       );
       next.start += change;
-      if (source.kind === "audio") next.position += change;
+      if (!ripples) next.position += change;
     } else {
       const edge = snap(
         Math.max(
@@ -216,7 +219,7 @@ export function planGesture(
             ? [move, trim]
             : [trim, move];
     }
-    if (source.kind === "video") {
+    if (ripples) {
       let cursor = 0;
       for (const c of source.clips) {
         const placement =
@@ -246,7 +249,7 @@ export function planGesture(
         next.position < c.position_ms + clipLength(c) &&
         next.position + length > c.position_ms,
     ) &&
-    !(mode !== "move" && source.kind === "video")
+    !(mode !== "move" && ripples)
   ) {
     plan.error =
       "Клипы не могут пересекаться — возьмите другую дорожку или включите «Магнит» для видео";

@@ -15,6 +15,7 @@ fn arguments_keep_paths_as_one_argument() {
         width: 320,
         height: 180,
         has_audio: false,
+        still: false,
     };
     let args = segment_args(&p, &a, 1234, 2500, std::path::Path::new("/tmp/out.mp4"));
     assert!(args.contains(&a.path.to_string_lossy().to_string()));

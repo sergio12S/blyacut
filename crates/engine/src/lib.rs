@@ -10,6 +10,7 @@ use std::{
     },
     time::Duration,
 };
+const STILL_EXTENSIONS: [&str; 4] = ["png", "jpg", "jpeg", "webp"];
 pub fn binary(name: &str) -> PathBuf {
     let key = if name == "ffmpeg" {
         "BLYACUT_FFMPEG"
@@ -43,9 +44,14 @@ pub fn probe(path: &Path) -> Result<Asset> {
         "mp4", "mov", "m4v", "mkv", "webm", "wav", "mp3", "m4a", "flac", "ogg",
     ]
     .contains(&ext.as_str())
+        && !STILL_EXTENSIONS.contains(&ext.as_str())
     {
-        return Err("Supported media: MP4, MOV, M4V, MKV, WebM, WAV, MP3, M4A, FLAC, OGG".into());
+        return Err(
+            "Supported media: MP4, MOV, M4V, MKV, WebM, WAV, MP3, M4A, FLAC, OGG, PNG, JPEG, WebP"
+                .into(),
+        );
     }
+    let still = STILL_EXTENSIONS.contains(&ext.as_str());
     let out = Command::new(binary("ffprobe"))
         .args([
             "-v",
@@ -70,6 +76,30 @@ pub fn probe(path: &Path) -> Result<Asset> {
         .find(|s| s["codec_type"] == "video" && s["disposition"]["attached_pic"] != 1);
     let audio = streams.iter().find(|s| s["codec_type"] == "audio");
     let main = video.or(audio).ok_or("No video or audio stream")?;
+    if still {
+        let video = video.ok_or("Image has no picture")?;
+        let (width, height) = (
+            video["width"].as_u64().unwrap_or(0) as u32,
+            video["height"].as_u64().unwrap_or(0) as u32,
+        );
+        if width == 0 || height == 0 || width > 16384 || height > 16384 {
+            return Err("Unsupported image dimensions".into());
+        }
+        return Ok(Asset {
+            id: id(),
+            name: path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into(),
+            path,
+            duration_ms: blyacut_core::STILL_MS,
+            width,
+            height,
+            has_audio: false,
+            still: true,
+        });
+    }
     let seconds = v["format"]["duration"]
         .as_str()
         .or_else(|| main["duration"].as_str())
@@ -95,7 +125,121 @@ pub fn probe(path: &Path) -> Result<Asset> {
         width,
         height,
         has_audio: streams.iter().any(|s| s["codec_type"] == "audio"),
+        still: false,
     })
+}
+/// Input arguments for one source: stills loop one frame, media seek to `start`.
+pub(crate) fn media_input(project: &Project, asset: &Asset, start: u64) -> Vec<String> {
+    let path = asset.path.to_string_lossy().to_string();
+    if asset.still {
+        let s = &project.settings;
+        vec![
+            "-loop".into(),
+            "1".into(),
+            "-framerate".into(),
+            format!("{}/{}", s.fps_num, s.fps_den),
+            "-i".into(),
+            path,
+        ]
+    } else {
+        vec!["-ss".into(), sec(start), "-i".into(), path]
+    }
+}
+/// Filter chain for one overlay input: fit the frame, apply its scale, effects and opacity.
+pub fn overlay_layer(project: &Project, clip: &blyacut_core::Clip) -> String {
+    let s = &project.settings;
+    let t = clip.transform.unwrap_or_default();
+    let scale = t.scale_milli as f64 / 1000.0;
+    let mut chain = format!(
+        "fps={}/{},scale={w}:{h}:force_original_aspect_ratio=decrease,scale=trunc(iw*{scale:.3}/2)*2:trunc(ih*{scale:.3}/2)*2,setsar=1",
+        s.fps_num,
+        s.fps_den,
+        w = s.width,
+        h = s.height
+    );
+    let effects = video_effect_filters(clip);
+    if !effects.is_empty() {
+        chain = format!("{chain},format=yuv420p,{effects}");
+    }
+    format!(
+        "{chain},format=yuva420p,colorchannelmixer=aa={:.3}",
+        t.opacity_milli as f64 / 1000.0
+    )
+}
+/// `overlay` position: the clip centre lands at the transform's fractional point.
+pub fn overlay_position(clip: &blyacut_core::Clip) -> String {
+    let t = clip.transform.unwrap_or_default();
+    format!(
+        "x=main_w*{:.3}-overlay_w/2:y=main_h*{:.3}-overlay_h/2",
+        t.x_milli as f64 / 1000.0,
+        t.y_milli as f64 / 1000.0
+    )
+}
+/// Composite overlay clips (in track order) onto the rendered main track.
+fn overlay_args(
+    project: &Project,
+    overlays: &[(&blyacut_core::Clip, &Asset)],
+    base: &Path,
+    out: &Path,
+) -> Vec<String> {
+    let mut args: Vec<String> = [
+        "-nostdin",
+        "-v",
+        "error",
+        "-n",
+        "-protocol_whitelist",
+        "file,pipe",
+        "-i",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    args.push(base.to_string_lossy().into());
+    let mut graph = vec![];
+    let mut current = "0:v".to_string();
+    for (i, (clip, asset)) in overlays.iter().enumerate() {
+        args.extend(media_input(project, asset, clip.source_start_ms));
+        let input = i + 1;
+        // -t applies to the input that follows; stills need it to end.
+        let at = args.len() - 2;
+        args.splice(at..at, ["-t".to_string(), sec(clip.duration())]);
+        let (from, to) = (clip.position_ms, clip.position_ms + clip.duration());
+        graph.push(format!(
+            "[{input}:v]{},setpts=PTS-STARTPTS+{}/TB[o{input}]",
+            overlay_layer(project, clip),
+            sec(from)
+        ));
+        graph.push(format!(
+            "[{current}][o{input}]overlay={}:eof_action=pass:enable='between(t,{},{})'[v{input}]",
+            overlay_position(clip),
+            sec(from),
+            sec(to)
+        ));
+        current = format!("v{input}");
+    }
+    graph.push(format!("[{current}]format=yuv420p[vout]"));
+    args.extend([
+        "-filter_complex".into(),
+        graph.join(";"),
+        "-map".into(),
+        "[vout]".into(),
+        "-map".into(),
+        "0:a".into(),
+        "-c:v".into(),
+        "libx264".into(),
+        "-preset".into(),
+        "veryfast".into(),
+        "-crf".into(),
+        "20".into(),
+        "-c:a".into(),
+        "copy".into(),
+        "-movflags".into(),
+        "+faststart".into(),
+        "-progress".into(),
+        "pipe:1".into(),
+        out.to_string_lossy().into(),
+    ]);
+    args
 }
 /// Letterbox any source into the project frame, rate and pixel format.
 pub(crate) fn normalize_filter(project: &Project) -> String {
@@ -125,11 +269,8 @@ pub fn segment_args(
         "-n".into(),
         "-protocol_whitelist".into(),
         "file,pipe".into(),
-        "-ss".into(),
-        sec(start),
-        "-i".into(),
-        asset.path.to_string_lossy().into(),
     ];
+    a.extend(media_input(project, asset, start));
     if !asset.has_audio {
         a.extend([
             "-f".into(),
@@ -254,18 +395,31 @@ pub fn render(
     if output.exists() {
         return Err("Output already exists; choose a new filename".into());
     }
-    let video_tracks: Vec<_> = project
-        .tracks
-        .iter()
-        .filter(|t| t.kind == TrackKind::Video && !t.clips.is_empty())
-        .collect();
-    if video_tracks.len() > 1 {
-        return Err("Compositing multiple video tracks is not implemented".into());
-    }
-    let clips = video_tracks
-        .first()
+    let clips = project
+        .main_video_track()
         .map(|t| t.clips.as_slice())
         .unwrap_or(&[]);
+    let mut overlays = vec![];
+    for track in project
+        .tracks
+        .iter()
+        .filter(|t| project.is_overlay_track(t))
+    {
+        for clip in &track.clips {
+            let asset = project
+                .assets
+                .iter()
+                .find(|a| a.id == clip.asset_id)
+                .ok_or("Unknown asset")?;
+            if !asset.path.is_absolute() || !asset.path.is_file() {
+                return Err(format!("Missing media: {}", asset.path.display()));
+            }
+            overlays.push((clip, asset));
+        }
+    }
+    if overlays.len() > 32 {
+        return Err("Export supports up to 32 overlay clips".into());
+    }
     let audio_clips: Vec<_> = project
         .tracks
         .iter()
@@ -360,12 +514,23 @@ pub fn render(
     ];
     run(&args, &cancel, &log, |_| {})?;
     progress(0.8);
+    let base = if overlays.is_empty() {
+        base
+    } else {
+        let layered = scratch.0.join("layered.mp4");
+        let args = overlay_args(project, &overlays, &base, &layered);
+        run(&args, &cancel, &log, |ms| {
+            progress(0.8 + ms.min(end) as f64 / end as f64 * 0.1)
+        })?;
+        layered
+    };
+    progress(0.9);
     if audio_clips.is_empty() {
         std::fs::rename(&base, &result).map_err(|e| e.to_string())?;
     } else {
         let args = mix_args(project, &audio_clips, &base, &result)?;
         run(&args, &cancel, &log, |ms| {
-            progress(0.8 + ms.min(end) as f64 / end as f64 * 0.19)
+            progress(0.9 + ms.min(end) as f64 / end as f64 * 0.09)
         })?;
     }
     if cancel.load(Ordering::Relaxed) {

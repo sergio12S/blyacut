@@ -70,6 +70,12 @@ try {
         clips: [clip("a1", 1000, 1000, 3000), clip("a2", 5000, 0, 2000)],
       },
       { id: "b", name: "Audio 2", kind: "audio", clips: [] },
+      {
+        id: "o",
+        name: "Video 2",
+        kind: "video",
+        clips: [clip("o1", 500, 0, 1000), clip("o2", 3000, 0, 1000)],
+      },
     ],
   };
   const original = structuredClone(project);
@@ -168,6 +174,15 @@ try {
     assert.equal(p.placements.v1.end, 1000);
     assert.equal(p.placements.v2.position, 1000);
     assert.equal(p.error, undefined);
+  });
+  test("Overlay tracks never ripple: trims keep neighbours, magnetic moves stay free", () => {
+    const trim = plan("o1", "trim-end", -500, "o");
+    assert.equal(trim.label, "Trim");
+    assert.equal(trim.placements.o2, undefined);
+    const move = plan("o2", "move", 1500, "o", { magnetic: true });
+    assert.equal(move.label, "Move");
+    assert.equal(move.placements.o2.position, 4500);
+    assert.equal(move.error, undefined);
   });
   test("Trim cannot extend past source duration or before source zero", () => {
     assert.equal(plan("v2", "trim-end", 50000, "v").placements.v2.end, 10000);

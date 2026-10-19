@@ -9,6 +9,7 @@ fn editor() -> Editor {
         width: 320,
         height: 180,
         has_audio: true,
+        still: false,
     })
     .unwrap();
     e.execute(Edit::Append {
@@ -251,6 +252,7 @@ fn batch_failure_stale_revision_and_incompatible_media_are_atomic() {
         width: 0,
         height: 0,
         has_audio: true,
+        still: false,
     })
     .unwrap();
     assert!(e
@@ -284,7 +286,7 @@ fn v1_project_migrates_without_changing_clip_ranges() {
         .canonicalize()
         .unwrap();
     let p = load(&path).unwrap();
-    assert_eq!(p.version, 3);
+    assert_eq!(p.version, VERSION);
     assert_eq!(p.tracks[0].clips[1].source_start_ms, 4000);
     assert_eq!(p.tracks[0].clips[0].gain_milli, 1000);
     assert_eq!(p.tracks[0].clips[0].fade_in_ms, 0);
@@ -303,6 +305,7 @@ fn warnings_explain_black_tails_and_gaps() {
             width: w,
             height: if w > 0 { 180 } else { 0 },
             has_audio: true,
+            still: false,
         })
         .unwrap();
     }
@@ -316,7 +319,7 @@ fn warnings_explain_black_tails_and_gaps() {
         track_id: at,
     })
     .unwrap();
-    assert!(e.project.warnings()[0].starts_with("No video clips"));
+    assert!(e.project.warnings()[0].starts_with("Main video track is empty"));
     e.execute(Edit::Append {
         asset_id: "v".into(),
         clip_id: "shot".into(),

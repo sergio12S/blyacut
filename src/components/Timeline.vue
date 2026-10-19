@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useEditor } from "../stores/editor";
-import { RECIPE_MIME, time, trackName, type Clip } from "../types";
+import {
+  RECIPE_MIME,
+  isOverlayTrack,
+  time,
+  trackName,
+  type Clip,
+} from "../types";
 import {
   clipLength,
   clipHitMode,
@@ -267,8 +273,13 @@ function position(c: Clip) {
           @click="e.remove()"
         >
           Удалить</button
+        ><button
+          title="Дорожка наложений: картинка в картинке, логотипы, текст"
+          @click="e.addVideoTrack()"
+        >
+          ＋ Видео</button
         ><button title="Добавить звуковую дорожку" @click="e.addAudioTrack()">
-          ＋ Дорожка
+          ＋ Звук
         </button>
         <button
           class="mode-toggle"
@@ -321,7 +332,11 @@ function position(c: Clip) {
             ><span
               >{{ trackName(track.name)
               }}<small>{{
-                track.kind === "audio" ? "Звук" : "Видео + звук"
+                track.kind === "audio"
+                  ? "Звук"
+                  : isOverlayTrack(e.project, track)
+                    ? "Наложение"
+                    : "Главное видео"
               }}</small></span
             >
           </div>

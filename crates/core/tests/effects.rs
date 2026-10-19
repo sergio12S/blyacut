@@ -13,6 +13,7 @@ fn recipes_are_strict_bounded_and_project_embeds_a_snapshot() {
         width: 320,
         height: 180,
         has_audio: true,
+        still: false,
     })
     .unwrap();
     e.execute(Edit::Append {

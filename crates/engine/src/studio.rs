@@ -1,6 +1,6 @@
 //! Agent-facing helpers: single-frame preview, loudness measurement and title cards.
 use crate::{binary, normalize_filter, sec, video_effect_filters};
-use blyacut_core::{Project, Result, TrackKind};
+use blyacut_core::{Project, Result};
 use serde::Serialize;
 use std::{
     path::{Path, PathBuf},
@@ -32,24 +32,93 @@ fn new_file(out: &Path, ext: &str) -> Result<()> {
     Ok(())
 }
 
-/// Render the exported look of one timeline instant to a new PNG, effects included.
+/// Render the exported look of one timeline instant to a new PNG: main track, effects and overlays.
 pub fn preview_frame(project: &Project, time_ms: u64, out: &Path, width: u32) -> Result<()> {
     project.validate()?;
     new_file(out, "png")?;
     if !(64..=3840).contains(&width) {
         return Err("Preview width must be 64..=3840".into());
     }
-    let s = &project.settings;
-    let height = ((width as u64 * s.height as u64 / s.width as u64) / 2 * 2).max(2);
-    let clip = project
+    let active: Vec<_> = project
         .tracks
         .iter()
-        .find(|t| t.kind == TrackKind::Video && !t.clips.is_empty())
-        .and_then(|t| {
-            t.clips
+        .filter(|t| project.is_overlay_track(t))
+        .flat_map(|t| &t.clips)
+        .filter(|c| c.position_ms <= time_ms && time_ms < c.position_ms + c.duration())
+        .collect();
+    if active.is_empty() {
+        return main_frame(project, time_ms, out, width);
+    }
+    let parent = out.parent().ok_or("Output needs a directory")?;
+    let base = parent.join(format!(".blyacut-frame-{}.png", blyacut_core::id()));
+    let result = (|| {
+        main_frame(project, time_ms, &base, project.settings.width)?;
+        let mut args: Vec<String> = [
+            "-nostdin",
+            "-v",
+            "error",
+            "-n",
+            "-protocol_whitelist",
+            "file,pipe",
+            "-i",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        args.push(base.to_string_lossy().into());
+        let mut graph = vec![];
+        let mut current = "0:v".to_string();
+        for (i, clip) in active.iter().enumerate() {
+            let asset = project
+                .assets
                 .iter()
-                .find(|c| c.position_ms <= time_ms && time_ms < c.position_ms + c.duration())
-        });
+                .find(|a| a.id == clip.asset_id)
+                .ok_or("Unknown asset")?;
+            if !asset.still {
+                args.extend([
+                    "-ss".into(),
+                    sec(clip.source_start_ms + time_ms - clip.position_ms),
+                ]);
+            }
+            args.extend(["-i".into(), asset.path.to_string_lossy().into()]);
+            let input = i + 1;
+            graph.push(format!(
+                "[{input}:v]{}[o{input}]",
+                crate::overlay_layer(project, clip)
+            ));
+            graph.push(format!(
+                "[{current}][o{input}]overlay={}[v{input}]",
+                crate::overlay_position(clip)
+            ));
+            current = format!("v{input}");
+        }
+        let s = &project.settings;
+        let height = ((width as u64 * s.height as u64 / s.width as u64) / 2 * 2).max(2);
+        graph.push(format!("[{current}]scale={width}:{height}[out]"));
+        args.extend([
+            "-filter_complex".into(),
+            graph.join(";"),
+            "-map".into(),
+            "[out]".into(),
+            "-frames:v".into(),
+            "1".into(),
+            out.to_string_lossy().into(),
+        ]);
+        ffmpeg(&args).map(|_| ())
+    })();
+    let _ = std::fs::remove_file(&base);
+    result
+}
+
+/// The main video track alone at one instant.
+fn main_frame(project: &Project, time_ms: u64, out: &Path, width: u32) -> Result<()> {
+    let s = &project.settings;
+    let height = ((width as u64 * s.height as u64 / s.width as u64) / 2 * 2).max(2);
+    let clip = project.main_video_track().and_then(|t| {
+        t.clips
+            .iter()
+            .find(|c| c.position_ms <= time_ms && time_ms < c.position_ms + c.duration())
+    });
     let base = [
         "-nostdin",
         "-v",
@@ -81,11 +150,8 @@ pub fn preview_frame(project: &Project, time_ms: u64, out: &Path, width: u32) ->
                 chain = format!("{chain},{effects},format=yuv420p");
             }
             // Decode from the clip start so fades and trails see the same history as export.
+            args.extend(crate::media_input(project, asset, c.source_start_ms));
             args.extend([
-                "-ss".into(),
-                sec(c.source_start_ms),
-                "-i".into(),
-                asset.path.to_string_lossy().into(),
                 "-vf".into(),
                 format!("{chain},scale={width}:{height}"),
                 "-ss".into(),
@@ -161,12 +227,29 @@ pub fn font_path() -> Result<PathBuf> {
         .ok_or_else(|| "No usable TrueType font found; set BLYACUT_FONT".into())
 }
 
-/// Rasterize centered text (up to 4 lines) into an RGB frame of the project size.
-pub fn title_frame(text: &str, width: u32, height: u32, style: &TitleStyle) -> Result<Vec<u8>> {
+/// Where and how large a text block is drawn.
+pub struct TextLayout {
+    /// Vertical centre of the block as a fraction of the frame height.
+    pub center_y: f32,
+    /// Maximum block height as a fraction of the frame height.
+    pub block: f32,
+    /// Soft dark shadow for legibility over video.
+    pub shadow: bool,
+}
+
+/// Rasterize centered text (up to 4 lines) into an RGBA frame; `None` background is transparent.
+pub fn render_text(
+    text: &str,
+    width: u32,
+    height: u32,
+    text_rgb: [u8; 3],
+    background: Option<[u8; 3]>,
+    layout: &TextLayout,
+) -> Result<Vec<u8>> {
     use ab_glyph::{point, Font, FontVec, PxScale, ScaleFont};
     let lines: Vec<&str> = text.lines().map(str::trim).collect();
     if text.trim().is_empty() || lines.len() > 4 || text.chars().count() > 200 {
-        return Err("Title text must be 1–200 characters on at most 4 lines".into());
+        return Err("Text must be 1–200 characters on at most 4 lines".into());
     }
     let font = FontVec::try_from_vec(std::fs::read(font_path()?).map_err(|e| e.to_string())?)
         .map_err(|_| "Unreadable font")?;
@@ -176,40 +259,129 @@ pub fn title_frame(text: &str, width: u32, height: u32, style: &TitleStyle) -> R
             .map(|c| f.h_advance(f.glyph_id(c)))
             .sum::<f32>()
     };
-    // Largest size whose widest line fits 84% of the frame and whose block fits 70% of its height.
-    let mut px = height as f32 * 0.7 / lines.len() as f32 / 1.25;
+    // Largest size whose widest line fits 84% of the frame and whose block fits `layout.block`.
+    let mut px = height as f32 * layout.block / lines.len() as f32 / 1.25;
     while px > 8.0 && lines.iter().any(|l| measure(px, l) > width as f32 * 0.84) {
         px *= 0.94;
     }
     let scaled = font.as_scaled(PxScale::from(px));
     let line_h = px * 1.25;
     let block = line_h * lines.len() as f32;
-    let mut frame = style.background_rgb.repeat((width * height) as usize);
-    for (i, line) in lines.iter().enumerate() {
-        let mut x = (width as f32 - measure(px, line)) / 2.0;
-        let baseline = (height as f32 - block) / 2.0 + line_h * i as f32 + scaled.ascent();
-        for c in line.chars() {
-            let id = scaled.glyph_id(c);
-            let glyph = id.with_scale_and_position(PxScale::from(px), point(x, baseline));
-            x += scaled.h_advance(id);
-            if let Some(outline) = font.outline_glyph(glyph) {
-                let b = outline.px_bounds();
-                outline.draw(|gx, gy, coverage| {
-                    let (px, py) = (b.min.x as i64 + gx as i64, b.min.y as i64 + gy as i64);
-                    if px < 0 || py < 0 || px >= width as i64 || py >= height as i64 {
-                        return;
-                    }
-                    let at = ((py as u32 * width + px as u32) * 3) as usize;
-                    for ch in 0..3 {
-                        let bg = frame[at + ch] as f32;
-                        let fg = style.text_rgb[ch] as f32;
-                        frame[at + ch] = (bg + (fg - bg) * coverage.min(1.0)).round() as u8;
-                    }
-                });
+    let top = (height as f32 * layout.center_y - block / 2.0).clamp(0.0, height as f32 - block);
+    let mut frame = match background {
+        Some([r, g, b]) => [r, g, b, 255].repeat((width * height) as usize),
+        None => vec![0; (width * height * 4) as usize],
+    };
+    // Porter-Duff "over" of one coloured pixel with coverage alpha.
+    let mut paint = |x: i64, y: i64, rgb: [u8; 3], alpha: f32| {
+        if x < 0 || y < 0 || x >= width as i64 || y >= height as i64 || alpha <= 0.0 {
+            return;
+        }
+        let at = ((y as u32 * width + x as u32) * 4) as usize;
+        let dst_a = frame[at + 3] as f32 / 255.0;
+        let out_a = alpha + dst_a * (1.0 - alpha);
+        for ch in 0..3 {
+            let dst = frame[at + ch] as f32;
+            frame[at + ch] =
+                ((rgb[ch] as f32 * alpha + dst * dst_a * (1.0 - alpha)) / out_a).round() as u8;
+        }
+        frame[at + 3] = (out_a * 255.0).round() as u8;
+    };
+    let shadow = (px * 0.05).max(1.0);
+    let passes: &[(f32, [u8; 3], f32)] = if layout.shadow {
+        &[(shadow, [0, 0, 0], 0.65), (0.0, text_rgb, 1.0)]
+    } else {
+        &[(0.0, text_rgb, 1.0)]
+    };
+    for &(offset, rgb, strength) in passes {
+        for (i, line) in lines.iter().enumerate() {
+            let mut x = (width as f32 - measure(px, line)) / 2.0 + offset;
+            let baseline = top + line_h * i as f32 + scaled.ascent() + offset;
+            for c in line.chars() {
+                let id = scaled.glyph_id(c);
+                let glyph = id.with_scale_and_position(PxScale::from(px), point(x, baseline));
+                x += scaled.h_advance(id);
+                if let Some(outline) = font.outline_glyph(glyph) {
+                    let b = outline.px_bounds();
+                    outline.draw(|gx, gy, coverage| {
+                        paint(
+                            b.min.x as i64 + gx as i64,
+                            b.min.y as i64 + gy as i64,
+                            rgb,
+                            coverage.min(1.0) * strength,
+                        )
+                    });
+                }
             }
         }
     }
     Ok(frame)
+}
+
+/// Opaque full-frame title (RGB), as used by title cards.
+pub fn title_frame(text: &str, width: u32, height: u32, style: &TitleStyle) -> Result<Vec<u8>> {
+    let layout = TextLayout {
+        center_y: 0.5,
+        block: 0.7,
+        shadow: false,
+    };
+    let rgba = render_text(
+        text,
+        width,
+        height,
+        style.text_rgb,
+        Some(style.background_rgb),
+        &layout,
+    )?;
+    Ok(rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|p| [p[0], p[1], p[2]])
+        .collect())
+}
+
+/// Transparent full-frame PNG with text; place it on an overlay track over video.
+pub fn text_overlay(
+    project: &Project,
+    text: &str,
+    text_rgb: [u8; 3],
+    center_y: f32,
+    out: &Path,
+) -> Result<()> {
+    new_file(out, "png")?;
+    if !(0.05..=0.95).contains(&center_y) {
+        return Err("Text position must be 0.05..=0.95 of the frame height".into());
+    }
+    let s = &project.settings;
+    let layout = TextLayout {
+        center_y,
+        block: 0.22,
+        shadow: true,
+    };
+    let frame = render_text(text, s.width, s.height, text_rgb, None, &layout)?;
+    let parent = out.parent().ok_or("Output needs a directory")?;
+    let raw = parent.join(format!(".blyacut-text-{}.rgba", blyacut_core::id()));
+    std::fs::write(&raw, frame).map_err(|e| e.to_string())?;
+    let result = ffmpeg(&[
+        "-nostdin".into(),
+        "-v".into(),
+        "error".into(),
+        "-n".into(),
+        "-f".into(),
+        "rawvideo".into(),
+        "-pix_fmt".into(),
+        "rgba".into(),
+        "-s".into(),
+        format!("{}x{}", s.width, s.height),
+        "-i".into(),
+        raw.to_string_lossy().into(),
+        "-frames:v".into(),
+        "1".into(),
+        out.to_string_lossy().into(),
+    ]);
+    let _ = std::fs::remove_file(&raw);
+    result.map(|_| ())
 }
 
 /// Encode a still title as a new H.264 MP4 (silent stereo track) in the project format.

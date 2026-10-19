@@ -223,6 +223,97 @@ fn agent_makes_a_video_end_to_end_without_desktop() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+#[test]
+fn agent_layers_text_and_picture_in_picture() {
+    let dir = std::env::temp_dir()
+        .join(format!("blyacut-layers-{}", blyacut_core::id()))
+        .canonicalize_or_create();
+    let p = |name: &str| dir.join(name).to_string_lossy().to_string();
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=red:s=640x360:r=30",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine",
+        "-t",
+        "3",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        &p("main.mp4"),
+    ]);
+    ffmpeg(&[
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=blue:s=640x360:r=30",
+        "-t",
+        "3",
+        "-c:v",
+        "libx264",
+        &p("cam.mp4"),
+    ]);
+    let mut a = Agent::start(&dir, true);
+    let main = a.ok("import_media", json!({"path": p("main.mp4")}))["project"]["assets"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cam = a.ok("import_media", json!({"path": p("cam.mp4")}))["project"]["assets"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let text = a.ok(
+        "create_text_overlay",
+        json!({"text":"Агент монтирует","output_path":p("caption.png"),"position":"bottom"}),
+    );
+    let text_id = text["asset_id"].as_str().unwrap().to_string();
+    let rev = text["revision"].as_u64().unwrap();
+    let vt = text["project"]["tracks"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let done = a.ok("apply_edits", json!({"expected_revision": rev, "edits": [
+        {"operation":"add_track","track_id":"pip","name":"Video 2","kind":"video"},
+        {"operation":"add_track","track_id":"captions","name":"Video 3","kind":"video"},
+        {"operation":"append","asset_id":main,"clip_id":"main","track_id":vt},
+        {"operation":"append","asset_id":cam,"clip_id":"cam","track_id":"pip"},
+        {"operation":"trim_clip","clip_id":"cam","start_ms":0,"end_ms":2000},
+        {"operation":"move_clip","clip_id":"cam","track_id":"pip","position_ms":500},
+        {"operation":"set_transform","clip_id":"cam","transform":{"x_milli":800,"y_milli":200,"scale_milli":300,"opacity_milli":900}},
+        {"operation":"append","asset_id":text_id,"clip_id":"caption","track_id":"captions"},
+        {"operation":"trim_clip","clip_id":"caption","start_ms":0,"end_ms":3000}
+    ]}));
+    assert!(
+        done["warnings"].as_array().unwrap().is_empty(),
+        "{}",
+        done["warnings"]
+    );
+    a.ok(
+        "preview_frame",
+        json!({"time_ms": 1000, "output_path": p("layers.png")}),
+    );
+    let rev = done["revision"].as_u64().unwrap();
+    a.ok(
+        "export_video",
+        json!({"expected_revision": rev, "output_path": p("layers.mp4")}),
+    );
+    let job = loop {
+        let job = a.ok("get_session", json!({}))["render_job"].clone();
+        if job["status"] != "rendering" {
+            break job;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    };
+    assert_eq!(job["status"], "complete", "{job}");
+    drop(a.input);
+    assert!(a.child.wait().unwrap().success());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 trait Create {
     fn canonicalize_or_create(self) -> std::path::PathBuf;
 }

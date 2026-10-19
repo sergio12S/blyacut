@@ -9,6 +9,10 @@ pub fn id() -> String {
     Uuid::new_v4().to_string()
 }
 const MAX_TIME: u64 = 604_800_000; // One week, also safely representable in JS.
+/// Current project schema. v4 adds still images, overlay tracks and clip transforms.
+pub const VERSION: u32 = 4;
+/// Usable length of a still image asset; clips trim it to the duration they need.
+pub const STILL_MS: u64 = 3_600_000;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
     pub width: u32,
@@ -25,6 +29,9 @@ pub struct Asset {
     pub width: u32,
     pub height: u32,
     pub has_audio: bool,
+    /// A single image (PNG/JPEG/WebP) held for any clip length.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub still: bool,
 }
 fn unity() -> u16 {
     1000
@@ -44,6 +51,41 @@ pub struct Clip {
     pub fade_out_ms: u64,
     #[serde(default)]
     pub effects: Vec<EffectRecipe>,
+    /// Placement on overlay video tracks; `None` fills the frame like the main track.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform: Option<Transform>,
+}
+/// Overlay placement in thousandths: centre position as a fraction of the frame,
+/// scale relative to fitting the frame, and opacity.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Transform {
+    pub x_milli: u16,
+    pub y_milli: u16,
+    pub scale_milli: u16,
+    pub opacity_milli: u16,
+}
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            x_milli: 500,
+            y_milli: 500,
+            scale_milli: 1000,
+            opacity_milli: 1000,
+        }
+    }
+}
+impl Transform {
+    pub fn validate(&self) -> Result<()> {
+        if self.x_milli > 1000
+            || self.y_milli > 1000
+            || !(10..=4000).contains(&self.scale_milli)
+            || self.opacity_milli > 1000
+        {
+            return Err("Transform: x/y/opacity 0..=1000, scale 10..=4000".into());
+        }
+        Ok(())
+    }
 }
 impl Clip {
     pub fn duration(&self) -> u64 {
@@ -76,7 +118,7 @@ pub struct Project {
 impl Default for Project {
     fn default() -> Self {
         Self {
-            version: 3,
+            version: VERSION,
             id: id(),
             name: "Untitled project".into(),
             settings: Settings {
@@ -104,6 +146,13 @@ impl Default for Project {
     }
 }
 impl Project {
+    /// The first video track is the magnetic main track; later video tracks are overlays.
+    pub fn main_video_track(&self) -> Option<&Track> {
+        self.tracks.iter().find(|t| t.kind == TrackKind::Video)
+    }
+    pub fn is_overlay_track(&self, track: &Track) -> bool {
+        track.kind == TrackKind::Video && self.main_video_track().is_some_and(|m| m.id != track.id)
+    }
     pub fn duration(&self) -> u64 {
         self.tracks
             .iter()
@@ -119,18 +168,25 @@ impl Project {
         if end == 0 {
             return vec!["Timeline is empty".into()];
         }
-        let video: Vec<_> = self
+        let mut out = vec![];
+        let overlay_sound = self
             .tracks
             .iter()
-            .filter(|t| t.kind == TrackKind::Video && !t.clips.is_empty())
-            .collect();
-        let mut out = vec![];
-        if video.len() > 1 {
-            out.push("Only one populated video track can be exported".into());
+            .filter(|t| self.is_overlay_track(t))
+            .flat_map(|t| &t.clips)
+            .any(|c| {
+                self.assets
+                    .iter()
+                    .any(|a| a.id == c.asset_id && a.has_audio)
+            });
+        if overlay_sound {
+            out.push(
+                "Overlay clips export without sound; put their audio on an audio track".into(),
+            );
         }
-        let Some(track) = video.first() else {
+        let Some(track) = self.main_video_track().filter(|t| !t.clips.is_empty()) else {
             out.push(format!(
-                "No video clips: export is {} of black frames",
+                "Main video track is empty: export is {} of black frames under any overlays",
                 secs(end)
             ));
             return out;
@@ -157,7 +213,7 @@ impl Project {
         out
     }
     pub fn validate(&self) -> Result<()> {
-        if self.version != 3 {
+        if self.version != VERSION {
             return Err(format!("Unsupported project version {}", self.version));
         }
         if self.assets.len() > 4096
@@ -191,6 +247,7 @@ impl Project {
                 || a.duration_ms > MAX_TIME
                 || (a.width == 0) != (a.height == 0)
                 || (a.width == 0 && !a.has_audio)
+                || (a.still && (a.width == 0 || a.has_audio))
             {
                 return Err("Invalid or duplicate asset".into());
             }
@@ -229,6 +286,14 @@ impl Project {
                         return Err("Video effect cannot be applied to an audio-only track".into());
                     }
                 }
+                if let Some(transform) = &c.transform {
+                    transform.validate()?;
+                    if !self.is_overlay_track(t) {
+                        return Err(
+                            "Transforms apply to clips on overlay video tracks (V2+)".into()
+                        );
+                    }
+                }
                 if c.gain_milli > 1000
                     || c.fade_in_ms > c.duration()
                     || c.fade_out_ms > c.duration() - c.fade_in_ms
@@ -256,6 +321,11 @@ pub enum Edit {
     SetEffects {
         clip_id: String,
         effects: Vec<EffectRecipe>,
+    },
+    /// Place an overlay clip; `null` resets it to fill the frame.
+    SetTransform {
+        clip_id: String,
+        transform: Option<Transform>,
     },
     AddTrack {
         track_id: String,
@@ -304,6 +374,7 @@ fn ripple(t: &mut Track) {
     }
 }
 fn apply(p: &mut Project, edit: Edit) -> Result<()> {
+    let main_video = p.main_video_track().map(|t| t.id.clone());
     match &edit {
         Edit::AddTrack {
             track_id,
@@ -384,6 +455,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             fade_in_ms: 0,
             fade_out_ms: 0,
             effects: vec![],
+            transform: None,
         });
     } else {
         let cid = match &edit {
@@ -392,7 +464,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             | Edit::DeleteClip { clip_id }
             | Edit::ReorderClip { clip_id, .. }
             | Edit::SetAudio { clip_id, .. }
-            | Edit::SetEffects { clip_id, .. } => clip_id,
+            | Edit::SetEffects { clip_id, .. }
+            | Edit::SetTransform { clip_id, .. } => clip_id,
             _ => unreachable!(),
         };
         let t = p
@@ -405,6 +478,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             .iter()
             .position(|c| &c.id == cid)
             .ok_or("Unknown clip")?;
+        // Only the main video track is magnetic; overlays stay where they were placed.
+        let ripples = main_video.as_deref() == Some(t.id.as_str());
         match edit {
             Edit::SplitClip {
                 position_ms,
@@ -430,6 +505,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                     fade_in_ms: 0,
                     fade_out_ms: c.fade_out_ms.min(c.source_end_ms - cut),
                     effects: c.effects.clone(),
+                    transform: c.transform,
                 };
                 c.source_end_ms = cut;
                 c.fade_in_ms = c.fade_in_ms.min(c.duration());
@@ -445,18 +521,21 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                 }
                 c.source_start_ms = start_ms;
                 c.source_end_ms = end_ms;
-                if t.kind == TrackKind::Video {
+                if ripples {
                     ripple(t);
                 }
             }
             Edit::DeleteClip { .. } => {
                 t.clips.remove(i);
-                if t.kind == TrackKind::Video {
+                if ripples {
                     ripple(t);
                 }
             }
             Edit::SetEffects { effects, .. } => {
                 t.clips[i].effects = effects;
+            }
+            Edit::SetTransform { transform, .. } => {
+                t.clips[i].transform = transform;
             }
             Edit::SetAudio {
                 gain_milli,
@@ -470,15 +549,15 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                 c.fade_out_ms = fade_out_ms;
             }
             Edit::ReorderClip { index, .. } => {
-                if t.kind != TrackKind::Video {
-                    return Err("Use move_clip to position audio".into());
+                if !ripples {
+                    return Err("Use move_clip to position audio and overlay clips".into());
                 }
                 if index >= t.clips.len() {
                     return Err("Invalid clip index".into());
                 }
                 let c = t.clips.remove(i);
                 t.clips.insert(index, c);
-                if t.kind == TrackKind::Video {
+                if ripples {
                     ripple(t);
                 }
             }
@@ -594,8 +673,8 @@ pub fn load(path: &std::path::Path) -> Result<Project> {
     }
     let mut p: Project = serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
-    if p.version == 1 || p.version == 2 {
-        p.version = 3;
+    if (1..VERSION).contains(&p.version) {
+        p.version = VERSION;
     }
     p.validate()?;
     for a in &mut p.assets {

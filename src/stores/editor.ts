@@ -2,8 +2,15 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import type { Project, Edit, Clip, Snapshot, EffectRecipe } from "../types";
-import { isVideoStep } from "../types";
+import type {
+  Project,
+  Edit,
+  Clip,
+  Snapshot,
+  EffectRecipe,
+  Transform,
+} from "../types";
+import { isOverlayTrack, isVideoStep } from "../types";
 export const useEditor = defineStore("editor", () => {
   const project = ref<Project>();
   const selected = ref("");
@@ -11,6 +18,8 @@ export const useEditor = defineStore("editor", () => {
   const playhead = ref(0);
   const playing = ref(false);
   const error = ref("");
+  /** Uncommitted overlay placement while a slider is dragged; the monitor shows it live. */
+  const draftTransform = ref<{ clipId: string; transform: Transform }>();
   const busy = ref(false);
   const projectPath = ref("");
   const dirty = ref(false);
@@ -113,6 +122,10 @@ export const useEditor = defineStore("editor", () => {
             "m4a",
             "flac",
             "ogg",
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
           ],
         },
       ],
@@ -126,6 +139,85 @@ export const useEditor = defineStore("editor", () => {
       name: `Звук ${(project.value?.tracks.filter((t) => t.kind === "audio").length ?? 0) + 1}`,
       kind: "audio",
     });
+  }
+  /** Put an asset on an overlay track at the playhead, creating a track when all are busy there. */
+  async function placeOverlay(assetId: string, durationMs?: number) {
+    const p = project.value;
+    const asset = p?.assets.find((a) => a.id === assetId);
+    if (!p || !asset?.width) return;
+    const start = Math.round(playhead.value);
+    const length = Math.min(
+      durationMs ?? (asset.still ? 5000 : asset.duration_ms),
+      asset.duration_ms,
+    );
+    const free = p.tracks.find(
+      (t) =>
+        isOverlayTrack(p, t) &&
+        !t.clips.some(
+          (c) =>
+            start < c.position_ms + c.source_end_ms - c.source_start_ms &&
+            start + length > c.position_ms,
+        ),
+    );
+    const trackId = free?.id ?? crypto.randomUUID();
+    const clipId = crypto.randomUUID();
+    const videoCount = p.tracks.filter((t) => t.kind === "video").length;
+    await editBatch([
+      ...(free
+        ? []
+        : [
+            {
+              operation: "add_track",
+              track_id: trackId,
+              name: `Видео ${videoCount + 1}`,
+              kind: "video",
+            } as Edit,
+          ]),
+      {
+        operation: "append",
+        asset_id: assetId,
+        clip_id: clipId,
+        track_id: trackId,
+      },
+      { operation: "trim_clip", clip_id: clipId, start_ms: 0, end_ms: length },
+      {
+        operation: "move_clip",
+        clip_id: clipId,
+        track_id: trackId,
+        position_ms: start,
+      },
+    ]);
+    selected.value = clipId;
+  }
+  async function addVideoTrack() {
+    await edit({
+      operation: "add_track",
+      track_id: crypto.randomUUID(),
+      name: `Видео ${(project.value?.tracks.filter((t) => t.kind === "video").length ?? 0) + 1}`,
+      kind: "video",
+    });
+  }
+  /** Transparent text image placed over the video at the playhead. */
+  async function createTextOverlay(
+    text: string,
+    textColor: string,
+    position: "top" | "center" | "bottom",
+    durationMs: number,
+  ) {
+    playing.value = false;
+    const before = new Set(project.value?.assets.map((a) => a.id));
+    await guard(async () => {
+      accept(
+        await invoke<Snapshot>("create_text_overlay", {
+          text,
+          textColor,
+          position,
+        }),
+      );
+      dirty.value = true;
+    });
+    const asset = project.value?.assets.find((a) => !before.has(a.id));
+    if (asset) await placeOverlay(asset.id, durationMs);
   }
   async function append(assetId: string, kind?: "video" | "audio") {
     const asset = project.value?.assets.find((a) => a.id === assetId);
@@ -305,5 +397,9 @@ export const useEditor = defineStore("editor", () => {
     select,
     applyRecipe,
     createTitle,
+    placeOverlay,
+    draftTransform,
+    addVideoTrack,
+    createTextOverlay,
   };
 });

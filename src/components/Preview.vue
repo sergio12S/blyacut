@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEditor } from "../stores/editor";
-import { time, type Clip } from "../types";
+import { FULL_FRAME, isOverlayTrack, time, type Clip } from "../types";
 import {
   AudioEffectPreview,
   previewIsApproximate,
@@ -24,16 +24,82 @@ function assetSource(id: string) {
   const a = e.project?.assets.find((a) => a.id === id);
   return a ? convertFileSrc(a.path) : "";
 }
-const clip = computed(() =>
-  e.videoClips.find(
-    (c) =>
-      e.playhead >= c.position_ms &&
-      e.playhead < c.position_ms + c.source_end_ms - c.source_start_ms,
-  ),
+const activeAt = (c: Clip) =>
+  e.playhead >= c.position_ms &&
+  e.playhead < c.position_ms + c.source_end_ms - c.source_start_ms;
+const asset = (c: Clip) => e.project?.assets.find((a) => a.id === c.asset_id);
+const mainTrack = computed(() =>
+  e.project?.tracks.find((t) => t.kind === "video"),
 );
+const clip = computed(() => mainTrack.value?.clips.find(activeAt));
+const mainStill = computed(() => !!(clip.value && asset(clip.value)?.still));
 const source = computed(() =>
-  clip.value ? assetSource(clip.value.asset_id) : "",
+  clip.value && !mainStill.value ? assetSource(clip.value.asset_id) : "",
 );
+// Overlay layers in track order (later tracks draw on top), as export composites them.
+const overlays = computed(() =>
+  (e.project?.tracks ?? [])
+    .filter((t) => isOverlayTrack(e.project, t))
+    .flatMap((t) => t.clips.filter(activeAt)),
+);
+// The frame box has the project's aspect ratio and fits the screen.
+const screen = ref<HTMLElement>();
+const box = ref({ width: 0, height: 0 });
+let observer: ResizeObserver | undefined;
+function fit() {
+  const s = e.project?.settings;
+  const el = screen.value;
+  if (!s || !el) return;
+  const scale = Math.min(el.clientWidth / s.width, el.clientHeight / s.height);
+  box.value = { width: s.width * scale, height: s.height * scale };
+}
+watch(() => e.project?.settings, fit);
+watch(screen, (el) => {
+  observer?.disconnect();
+  if (el) {
+    observer = new ResizeObserver(fit);
+    observer.observe(el);
+  }
+});
+/** Size/position of one overlay inside the frame box, mirroring the FFmpeg overlay maths. */
+function layerStyle(c: Clip) {
+  const s = e.project?.settings;
+  const a = asset(c);
+  if (!s || !a) return {};
+  const draft = e.draftTransform;
+  const t =
+    (draft?.clipId === c.id ? draft.transform : c.transform) ?? FULL_FRAME;
+  const fitScale = Math.min(s.width / a.width, s.height / a.height);
+  const k = (box.value.width / s.width) * fitScale * (t.scale_milli / 1000);
+  const width = a.width * k,
+    height = a.height * k;
+  const css = videoEffectStyle(c.effects);
+  return {
+    width: `${width}px`,
+    height: `${height}px`,
+    left: `${(box.value.width * t.x_milli) / 1000 - width / 2}px`,
+    top: `${(box.value.height * t.y_milli) / 1000 - height / 2}px`,
+    opacity: t.opacity_milli / 1000,
+    filter: css.filter,
+    transform: css.transform,
+  };
+}
+const layerVideos = new Map<string, HTMLVideoElement>();
+function setLayer(id: string, node: unknown) {
+  if (node instanceof HTMLVideoElement) layerVideos.set(id, node);
+  else layerVideos.delete(id);
+}
+function syncLayers() {
+  for (const c of overlays.value) {
+    const v = layerVideos.get(c.id);
+    if (!v || v.readyState < 1) continue;
+    const desired = (c.source_start_ms + e.playhead - c.position_ms) / 1000;
+    if (!v.seeking && Math.abs(v.currentTime - desired) > 0.2)
+      v.currentTime = desired;
+    if (e.playing && v.paused) void v.play().catch(() => {});
+    if (!e.playing) v.pause();
+  }
+}
 const videoPreviewStyle = computed(() =>
   videoEffectStyle(clip.value?.effects ?? []),
 );
@@ -76,6 +142,7 @@ function syncMedia(v: HTMLMediaElement, c: Clip, force: boolean) {
   if (!e.playing) v.pause();
 }
 function sync(force = false) {
+  syncLayers();
   effectAudio.prune();
   if (video.value && clip.value) syncMedia(video.value, clip.value, force);
   for (const c of e.audioClips) {
@@ -114,8 +181,12 @@ function tick(now: number) {
   }
   frame = requestAnimationFrame(tick);
 }
-onMounted(() => (frame = requestAnimationFrame(tick)));
+onMounted(() => {
+  frame = requestAnimationFrame(tick);
+  fit();
+});
 onUnmounted(() => {
+  observer?.disconnect();
   cancelAnimationFrame(frame);
   audio.forEach((node) => node.pause());
   effectAudio.dispose();
@@ -143,21 +214,54 @@ onUnmounted(() => {
           'Этот звук WebView не может воспроизвести. Попробуйте WAV или AAC.'
       "
     />
-    <div class="screen">
-      <video
-        v-if="source"
-        ref="video"
-        :src="source"
-        :style="videoPreviewStyle"
-        crossorigin="anonymous"
-        playsinline
-        preload="auto"
-        @loadedmetadata="sync(true)"
-        @error="
-          previewError =
-            'Это видео WebView не может воспроизвести. Попробуйте H.264 MP4 (экспорт всё равно сработает).'
-        "
-      />
+    <div ref="screen" class="screen">
+      <div
+        v-if="clip || overlays.length"
+        class="frame"
+        :style="{ width: box.width + 'px', height: box.height + 'px' }"
+      >
+        <img
+          v-if="mainStill && clip"
+          class="layer-main"
+          :src="assetSource(clip.asset_id)"
+          :style="videoPreviewStyle"
+          alt=""
+        />
+        <video
+          v-if="source"
+          ref="video"
+          :src="source"
+          :style="videoPreviewStyle"
+          crossorigin="anonymous"
+          playsinline
+          preload="auto"
+          @loadedmetadata="sync(true)"
+          @error="
+            previewError =
+              'Это видео WebView не может воспроизвести. Попробуйте H.264 MP4 (экспорт всё равно сработает).'
+          "
+        />
+        <template v-for="c in overlays" :key="c.id">
+          <img
+            v-if="asset(c)?.still"
+            class="layer"
+            :src="assetSource(c.asset_id)"
+            :style="layerStyle(c)"
+            alt=""
+          />
+          <video
+            v-else
+            :ref="(node) => setLayer(c.id, node)"
+            class="layer"
+            :src="assetSource(c.asset_id)"
+            :style="layerStyle(c)"
+            muted
+            playsinline
+            preload="auto"
+            @loadedmetadata="syncLayers"
+          />
+        </template>
+      </div>
       <div
         v-if="source && hasNonCssEffects"
         class="approx-badge"
@@ -165,7 +269,7 @@ onUnmounted(() => {
       >
         превью ≈
       </div>
-      <div v-else-if="!source" class="empty">
+      <div v-else-if="!source && !clip && !overlays.length" class="empty">
         <div class="empty-symbol">▷</div>
         <strong>{{
           e.audioClips.length ? "Только звук" : "Здесь будет ваше видео"
@@ -212,5 +316,27 @@ onUnmounted(() => {
   letter-spacing: 0.3px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
   font-family: var(--font-ui, sans-serif);
+}
+.frame {
+  position: absolute;
+  overflow: hidden;
+  z-index: 1;
+  background: #000;
+}
+.frame > video:not(.layer),
+.layer-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.layer {
+  position: absolute;
+  object-fit: fill;
+  pointer-events: none;
+}
+.approx-badge {
+  z-index: 3;
 }
 </style>

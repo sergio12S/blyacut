@@ -6,7 +6,22 @@ export interface Asset {
   width: number;
   height: number;
   has_audio: boolean;
+  /** A single image, usable for up to an hour. */
+  still?: boolean;
 }
+/** Overlay placement in thousandths (centre x/y of the frame, scale vs. fitting the frame, opacity). */
+export interface Transform {
+  x_milli: number;
+  y_milli: number;
+  scale_milli: number;
+  opacity_milli: number;
+}
+export const FULL_FRAME: Transform = {
+  x_milli: 500,
+  y_milli: 500,
+  scale_milli: 1000,
+  opacity_milli: 1000,
+};
 /** Mirrors `blyacut_core::effects::EffectStep`; Rust validation is authoritative. */
 export type EffectStep =
   // Video
@@ -76,6 +91,10 @@ export const VIDEO_EFFECTS = new Set<EffectStep["effect"]>([
 /** Default track names are stored in English in projects; show them localized. */
 export const trackName = (name: string) =>
   name.replace(/^Video (\d+)$/, "Видео $1").replace(/^Audio (\d+)$/, "Звук $1");
+/** The first video track is the magnetic main track; later video tracks are overlays. */
+export const isOverlayTrack = (project: Project | undefined, track: Track) =>
+  track.kind === "video" &&
+  project?.tracks.find((t) => t.kind === "video")?.id !== track.id;
 /** Drag-and-drop payload: a JSON EffectRecipe dropped onto a timeline clip. */
 export const RECIPE_MIME = "application/x-blyacut-recipe";
 export const isVideoStep = (s: EffectStep) => VIDEO_EFFECTS.has(s.effect);
@@ -99,6 +118,7 @@ export interface Clip {
   fade_in_ms: number;
   fade_out_ms: number;
   effects: EffectRecipe[];
+  transform?: Transform | null;
 }
 export interface Track {
   id: string;
@@ -132,6 +152,7 @@ export interface AgentConnection {
 }
 export type Edit =
   | { operation: "set_effects"; clip_id: string; effects: EffectRecipe[] }
+  | { operation: "set_transform"; clip_id: string; transform: Transform | null }
   | {
       operation: "add_track";
       track_id: string;

@@ -17,7 +17,7 @@ The core, engine, session and MCP crates have no UI/Tauri dependency. The deskto
 
 Times are unsigned integer milliseconds, bounded to one week and safe to send as JavaScript numbers. Frame rate is rational. UI stepping computes the adjacent frame from its index rather than repeatedly adding a rounded frame duration.
 
-Schema v3 embeds validated effect recipes; v2 introduced independent audio tracks, clip linear gain and fades. The loader explicitly upgrades v1/v2 defaults. A clip holds a stable ID, asset ID, timeline position, and half-open source interval `[source_start_ms, source_end_ms)`. Tracks are ordered arrays; validation rejects duplicate IDs, overlapping/out-of-order clips, unknown assets, invalid settings and out-of-bounds source ranges. Distinct tracks can overlap; the exporter mixes independent audio tracks but rejects more than one populated video track.
+Schema v4 adds still-image assets and overlay transforms (`Clip.transform`: centre x/y, scale, opacity in thousandths). Schema v3 embeds validated effect recipes; v2 introduced independent audio tracks, clip linear gain and fades. The loader explicitly upgrades v1/v2 defaults. A clip holds a stable ID, asset ID, timeline position, and half-open source interval `[source_start_ms, source_end_ms)`. Tracks are ordered arrays; validation rejects duplicate IDs, overlapping/out-of-order clips, unknown assets, invalid settings and out-of-bounds source ranges. Distinct tracks can overlap. The first video track is the magnetic main track (trim/delete/reorder ripple); later video tracks are overlays whose clips keep their positions like audio and may carry a transform. The exporter mixes independent audio tracks and composites overlays in track order.
 
 Every edit first operates on a candidate project, validates it and only then commits. Failure leaves history/state untouched. Append and split carry caller-provided IDs, so replay against the same initial project is deterministic. History stores up to 100 complete project snapshots; this favors correctness at MVP scale and should eventually be replaced by bounded operation records for huge projects.
 
@@ -25,11 +25,12 @@ Trim uses **source** milliseconds. Split uses an absolute **timeline** position.
 
 ## Export
 
-1. Validate the snapshot, output extension, at most one populated video track and audio/media limits.
+1. Validate the snapshot, output extension, overlay (≤32) and audio (≤64) clip limits.
 2. Create a unique scratch directory beside the destination.
 3. Decode each video interval, normalize geometry/FPS/audio and apply validated video effects and its linked-audio filters/gain/fades. Fill video gaps and any audio-only tail with black video and silence.
-4. Concat the normalized segments into a base video. For independent audio, trim/reset timestamps, apply audio recipe filters, linear gain/fades, delay to timeline position, sum with the base audio and apply a peak limiter. Copy video and encode AAC.
-5. Parse FFmpeg progress throughout the stages. Publish only the completed output with a same-filesystem hard link that refuses an existing filename. Clean scratch on success/error/cancellation.
+4. Concat the normalized segments into a base video. If overlay tracks have clips, one more FFmpeg pass composites them in track order: each layer is fitted to the frame, scaled, given its effects and opacity, time-shifted to its position and `overlay`-ed with `eof_action=pass`; stills loop one frame. `preview_frame` uses the same layer filters.
+5. For independent audio, trim/reset timestamps, apply audio recipe filters, linear gain/fades, delay to timeline position, sum with the base audio and apply a peak limiter. Copy video and encode AAC.
+6. Parse FFmpeg progress throughout the stages. Publish only the completed output with a same-filesystem hard link that refuses an existing filename. Clean scratch on success/error/cancellation.
 
 Processes use argument vectors and no shell. Media paths are canonicalized at import. FFprobe/FFmpeg input protocols are restricted to local file/pipe. Remote URLs and playlist imports are unsupported. User-selected project files are trusted local documents. The agent gateway separately canonicalizes import/output paths and restricts them to a user-selected folder.
 

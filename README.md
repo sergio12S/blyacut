@@ -54,7 +54,7 @@ The GBRAIN design swarm produced [UX prototypes and the consolidated design deci
 
 ## Persistence and recovery
 
-Project schema v3 explicitly migrates v1/v2 on load and rejects unknown versions. The versioned JSON project stores references, not media copies. Media inside the project directory uses relative paths; external files retain absolute paths. Copy referenced media alongside the project for portability. Opening a project lists missing media; relinking UI is not implemented.
+Project schema v4 explicitly migrates v1–v3 on load and rejects unknown versions. The versioned JSON project stores references, not media copies. Media inside the project directory uses relative paths; external files retain absolute paths. Copy referenced media alongside the project for portability. Opening a project lists missing media; relinking UI is not implemented.
 
 While edits are unsaved, a recovery snapshot is written every 30 seconds to the OS application data directory. On macOS: `~/Library/Application Support/org.blyacut.editor/autosave.blyacut`. Open that file through **Open** to recover. There is one recovery slot; a later session can replace it. Manually save before opening another project or closing the app; there is no unsaved-change prompt yet.
 
@@ -72,7 +72,7 @@ Integration tests require real FFmpeg/FFprobe. They synthesize fixtures; verify 
 
 ## Current limits
 
-- One populated video track, with linked source audio, plus up to 64 independent audio clips across tracks. Multiple video layers/overlays are not composited; export rejects them. Video gaps and audio-only tails export as black frames. The full project duration includes audio.
+- The first video track is the magnetic main track (with linked source audio). Further video tracks are overlay layers: up to 32 overlay clips with position, scale and opacity (picture-in-picture, logos, text over video, still images); overlay clips export without sound. Up to 64 independent audio clips. Main-track gaps and tails export as black frames. No transitions, keyframes or rotation yet.
 - HTML5 video/audio preview depends on WebView codec support. H.264 MP4, WAV or AAC are the most predictable. Importable containers such as MKV may export correctly but cannot preview in WebKit.
 - Preview uses a wall clock and `requestAnimationFrame` to seek/synchronize independent media elements and apply linear volume/fades. Playback under buffering and across cuts is approximate; no sample-accurate AV synchronization or decoded-frame stepping is guaranteed. Final mixing sums audio with a peak limiter; preview does not model that limiter, so loud overlapping tracks can sound different. Decoder and encoder resampling also differ.
 - Output uses project settings (default 1080p30), letterboxing, CPU `libx264` CRF 20 and AAC stereo. No settings editor, hardware encoding, proxies, frame cache, transitions, text overlays, multiband EQ or automatic ducking yet.

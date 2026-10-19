@@ -203,6 +203,7 @@ export const useEditor = defineStore("editor", () => {
     textColor: string,
     position: "top" | "center" | "bottom",
     durationMs: number,
+    style: "box" | "outline" | "shadow" = "box",
   ) {
     playing.value = false;
     const before = new Set(project.value?.assets.map((a) => a.id));
@@ -212,6 +213,7 @@ export const useEditor = defineStore("editor", () => {
           text,
           textColor,
           position,
+          style,
         }),
       );
       dirty.value = true;

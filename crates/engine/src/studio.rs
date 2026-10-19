@@ -233,8 +233,30 @@ pub struct TextLayout {
     pub center_y: f32,
     /// Maximum block height as a fraction of the frame height.
     pub block: f32,
-    /// Soft dark shadow for legibility over video.
-    pub shadow: bool,
+    pub backing: Backing,
+}
+/// What keeps text legible over busy video.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Backing {
+    None,
+    /// Soft offset shadow.
+    Shadow,
+    /// Semi-transparent dark plate behind the block.
+    Box,
+    /// Dark stroke around every glyph.
+    Outline,
+}
+impl std::str::FromStr for Backing {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "none" => Ok(Self::None),
+            "shadow" => Ok(Self::Shadow),
+            "box" => Ok(Self::Box),
+            "outline" => Ok(Self::Outline),
+            _ => Err("style must be shadow, box, outline or none".into()),
+        }
+    }
 }
 
 /// Rasterize centered text (up to 4 lines) into an RGBA frame; `None` background is transparent.
@@ -287,16 +309,36 @@ pub fn render_text(
         }
         frame[at + 3] = (out_a * 255.0).round() as u8;
     };
-    let shadow = (px * 0.05).max(1.0);
-    let passes: &[(f32, [u8; 3], f32)] = if layout.shadow {
-        &[(shadow, [0, 0, 0], 0.65), (0.0, text_rgb, 1.0)]
-    } else {
-        &[(0.0, text_rgb, 1.0)]
+    if layout.backing == Backing::Box {
+        let widest = lines.iter().map(|l| measure(px, l)).fold(0.0, f32::max);
+        let pad = px * 0.45;
+        let (x0, x1) = (
+            (width as f32 - widest) / 2.0 - pad,
+            (width as f32 + widest) / 2.0 + pad,
+        );
+        let (y0, y1) = (top - pad * 0.5, top + block + pad * 0.3);
+        for y in y0.max(0.0) as i64..y1.min(height as f32) as i64 {
+            for x in x0.max(0.0) as i64..x1.min(width as f32) as i64 {
+                paint(x, y, [0, 0, 0], 0.6);
+            }
+        }
+    }
+    let d = (px * 0.05).max(1.0);
+    let mut passes: Vec<(f32, f32, [u8; 3], f32)> = match layout.backing {
+        Backing::Shadow => vec![(d, d, [0, 0, 0], 0.65)],
+        Backing::Outline => (0..12)
+            .map(|k| {
+                let a = k as f32 * std::f32::consts::TAU / 12.0;
+                (a.cos() * d * 1.4, a.sin() * d * 1.4, [0, 0, 0], 1.0)
+            })
+            .collect(),
+        Backing::None | Backing::Box => vec![],
     };
-    for &(offset, rgb, strength) in passes {
+    passes.push((0.0, 0.0, text_rgb, 1.0));
+    for &(dx, dy, rgb, strength) in &passes {
         for (i, line) in lines.iter().enumerate() {
-            let mut x = (width as f32 - measure(px, line)) / 2.0 + offset;
-            let baseline = top + line_h * i as f32 + scaled.ascent() + offset;
+            let mut x = (width as f32 - measure(px, line)) / 2.0 + dx;
+            let baseline = top + line_h * i as f32 + scaled.ascent() + dy;
             for c in line.chars() {
                 let id = scaled.glyph_id(c);
                 let glyph = id.with_scale_and_position(PxScale::from(px), point(x, baseline));
@@ -323,7 +365,7 @@ pub fn title_frame(text: &str, width: u32, height: u32, style: &TitleStyle) -> R
     let layout = TextLayout {
         center_y: 0.5,
         block: 0.7,
-        shadow: false,
+        backing: Backing::None,
     };
     let rgba = render_text(
         text,
@@ -347,6 +389,7 @@ pub fn text_overlay(
     text: &str,
     text_rgb: [u8; 3],
     center_y: f32,
+    backing: Backing,
     out: &Path,
 ) -> Result<()> {
     new_file(out, "png")?;
@@ -357,7 +400,7 @@ pub fn text_overlay(
     let layout = TextLayout {
         center_y,
         block: 0.22,
-        shadow: true,
+        backing,
     };
     let frame = render_text(text, s.width, s.height, text_rgb, None, &layout)?;
     let parent = out.parent().ok_or("Output needs a directory")?;

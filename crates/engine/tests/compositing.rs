@@ -86,7 +86,15 @@ fn overlays_picture_in_picture_text_and_stills_composite_in_export_and_preview()
     let mut e = Editor::default();
     e.project.settings.width = 640;
     e.project.settings.height = 360;
-    text_overlay(&e.project, "ПРИВЕТ", [255, 255, 255], 0.8, &p("text.png")).unwrap();
+    text_overlay(
+        &e.project,
+        "ПРИВЕТ",
+        [255, 255, 255],
+        0.8,
+        Backing::Shadow,
+        &p("text.png"),
+    )
+    .unwrap();
     let mut ids = vec![];
     for name in ["red.mp4", "blue.mp4", "logo.png", "text.png"] {
         let a = probe(&p(name)).unwrap();

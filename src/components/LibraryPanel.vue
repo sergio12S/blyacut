@@ -24,6 +24,7 @@ const style = ref(0);
 const seconds = ref(3);
 const overlay = ref(false);
 const position = ref<"top" | "center" | "bottom">("bottom");
+const backing = ref<"box" | "outline" | "shadow">("box");
 function createTitle() {
   const [, text, background] = styles[style.value];
   if (overlay.value)
@@ -32,6 +33,7 @@ function createTitle() {
       text === "#111111" || text === "#18230C" ? background : text,
       position.value,
       seconds.value * 1000,
+      backing.value,
     );
   else
     void e.createTitle(titleText.value, text, background, seconds.value * 1000);
@@ -133,6 +135,14 @@ function createTitle() {
           <option value="bottom">Снизу (субтитр)</option>
         </select>
       </label>
+      <label v-if="overlay" class="field"
+        >Читаемость
+        <select v-model="backing">
+          <option value="box">Плашка — читается на любом фоне</option>
+          <option value="outline">Обводка</option>
+          <option value="shadow">Только тень</option>
+        </select>
+      </label>
       <label class="field"
         >Длительность
         <select v-model.number="seconds">
@@ -151,7 +161,7 @@ function createTitle() {
       <p class="hint">
         {{
           overlay
-            ? "Прозрачный текст с тенью встанет поверх видео в позиции плейхеда."
+            ? "Текст встанет поверх видео в позиции плейхеда."
             : "Титр встанет в конец видеодорожки. Добавьте ему «Появление из чёрного» во вкладке «Эффекты»."
         }}
       </p>

@@ -69,7 +69,7 @@ Title cards use a system TrueType font (Arial on macOS, DejaVu/Noto on Linux; ov
 | `cancel_export` | Request cancellation of the current export |
 | `preview_frame` | Render one timeline instant (effects included) to a new PNG in the folder |
 | `create_title_card` | Rasterize Latin/Cyrillic text into a new MP4 title clip and import it |
-| `create_text_overlay` | Transparent full-frame PNG with shadowed text, imported as a still for an overlay track |
+| `create_text_overlay` | Transparent full-frame PNG with text (`style`: box plate by default, outline, shadow), imported as a still; `place` puts it on an overlay track at a time and duration in the same call |
 | `save_project` / `open_project` | Persist or load a `.blyacut` inside the folder (its media must be inside too) |
 | `list_effect_recipes` | Reload validated recipes from `effects/` in the authorized folder |
 | `create_effect_recipe` | Validate and create a new recipe file without overwriting |

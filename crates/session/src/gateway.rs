@@ -77,8 +77,22 @@ struct TextOverlay {
     position: String,
     #[serde(default = "white")]
     text_color: String,
+    #[serde(default = "plate")]
+    style: String,
     #[serde(default = "yes")]
     import: bool,
+    place: Option<Place>,
+}
+/// Put a freshly imported overlay on a track in one step.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Place {
+    track_id: String,
+    position_ms: u64,
+    duration_ms: u64,
+}
+fn plate() -> String {
+    "box".into()
 }
 fn bottom() -> String {
     "bottom".into()
@@ -303,6 +317,7 @@ impl Gateway {
                     &a.text,
                     blyacut_engine::studio::parse_hex(&a.text_color)?,
                     center_y,
+                    a.style.parse()?,
                     &path,
                 )?;
                 if !a.import {
@@ -310,9 +325,36 @@ impl Gateway {
                 }
                 let asset = blyacut_engine::probe(&path)?;
                 let asset_id = asset.id.clone();
-                let mut value = Self::with_warnings(self.session.import_at(asset, s.revision)?);
+                let mut snapshot = self.session.import_at(asset, s.revision)?;
+                let mut clip_id = None;
+                if let Some(place) = a.place {
+                    let id = blyacut_core::id();
+                    snapshot = self.session.apply(
+                        &[
+                            Edit::Append {
+                                asset_id: asset_id.clone(),
+                                clip_id: id.clone(),
+                                track_id: place.track_id.clone(),
+                            },
+                            Edit::TrimClip {
+                                clip_id: id.clone(),
+                                start_ms: 0,
+                                end_ms: place.duration_ms,
+                            },
+                            Edit::MoveClip {
+                                clip_id: id.clone(),
+                                track_id: place.track_id,
+                                position_ms: place.position_ms,
+                            },
+                        ],
+                        snapshot.revision,
+                    )?;
+                    clip_id = Some(id);
+                }
+                let mut value = Self::with_warnings(snapshot);
                 value["path"] = json!(path);
                 value["asset_id"] = json!(asset_id);
+                value["clip_id"] = json!(clip_id);
                 Ok(value)
             }
             "save_project" => {

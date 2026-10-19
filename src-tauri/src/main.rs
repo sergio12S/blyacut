@@ -145,6 +145,7 @@ async fn create_text_overlay(
     text: String,
     text_color: String,
     position: String,
+    style: Option<String>,
 ) -> Result<Snapshot> {
     let center_y = match position.as_str() {
         "top" => 0.15,
@@ -162,7 +163,15 @@ async fn create_text_overlay(
     tauri::async_runtime::spawn_blocking(move || {
         let snapshot = session.snapshot()?;
         let path = dir.join(format!("text-{}.png", blyacut_core::id()));
-        blyacut_engine::studio::text_overlay(&snapshot.project, &text, color, center_y, &path)?;
+        let backing = style.as_deref().unwrap_or("box").parse()?;
+        blyacut_engine::studio::text_overlay(
+            &snapshot.project,
+            &text,
+            color,
+            center_y,
+            backing,
+            &path,
+        )?;
         let asset = blyacut_engine::probe(&path)?;
         session.import_at(asset, snapshot.revision)
     })

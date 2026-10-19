@@ -270,6 +270,23 @@ fn agent_layers_text_and_picture_in_picture() {
         "create_text_overlay",
         json!({"text":"Агент монтирует","output_path":p("caption.png"),"position":"bottom"}),
     );
+    // One-call placement on a fresh overlay track, with an outline style.
+    let rev0 = text["revision"].as_u64().unwrap();
+    a.ok("apply_edits", json!({"expected_revision": rev0, "edits": [{"operation":"add_track","track_id":"titles","name":"Video 9","kind":"video"}]}));
+    let placed = a.ok("create_text_overlay", json!({"text":"Сразу на месте","output_path":p("title.png"),"position":"top","style":"outline","place":{"track_id":"titles","position_ms":250,"duration_ms":1500}}));
+    let clip_id = placed["clip_id"].as_str().unwrap().to_string();
+    let titles = placed["project"]["tracks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "titles")
+        .unwrap()
+        .clone();
+    assert_eq!(titles["clips"][0]["id"], json!(clip_id));
+    assert_eq!(titles["clips"][0]["position_ms"], 250);
+    assert_eq!(titles["clips"][0]["source_end_ms"], 1500);
+    let text_id_first = text["asset_id"].as_str().unwrap().to_string();
+    let text = json!({"asset_id": text_id_first, "revision": placed["revision"], "project": placed["project"]});
     let text_id = text["asset_id"].as_str().unwrap().to_string();
     let rev = text["revision"].as_u64().unwrap();
     let vt = text["project"]["tracks"][0]["id"]

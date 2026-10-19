@@ -1028,3 +1028,6 @@ body { color: var(--text-primary); }
 .timeline { position: relative; }
 .timeline-status { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 8; max-width: 80%; padding: 6px 12px; border-radius: 999px; background: #0d0f13ee; border: 1px solid var(--border-control); font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .timeline-status.drag-warning { border-color: #8a6a3a; color: #f0c693; }
+.timeline .transition-mark { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #c1f17b66, transparent); border-left: 2px solid var(--accent); pointer-events: none; z-index: 1; }
+.export-dialog .format { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; font-size: 12px; color: var(--text-secondary); }
+.export-dialog .format select { font: inherit; font-size: 13px; padding: 8px; color: var(--text-primary); background: var(--surface-input); border: 1px solid var(--border-control); border-radius: var(--radius-control); }

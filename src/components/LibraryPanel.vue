@@ -2,14 +2,29 @@
 import { ref } from "vue";
 import { useEditor } from "../stores/editor";
 import EffectsPanel from "./EffectsPanel.vue";
-import { time } from "../types";
+import { time, type TransitionKind } from "../types";
+import {
+  TRANSITION_ICONS,
+  TRANSITION_KINDS,
+  TRANSITION_MIME,
+  TRANSITION_NAMES,
+} from "../transitions";
 const e = useEditor();
-const tab = ref<"media" | "titles" | "effects">("media");
+const tab = ref<"media" | "titles" | "effects" | "transitions">("media");
 const tabs = [
   ["media", "Медиа"],
   ["titles", "Титры"],
   ["effects", "Эффекты"],
+  ["transitions", "Переходы"],
 ] as const;
+const transitionMs = ref(800);
+function dragTransition(event: DragEvent, kind: TransitionKind) {
+  event.dataTransfer?.setData(
+    TRANSITION_MIME,
+    JSON.stringify({ kind, duration_ms: transitionMs.value }),
+  );
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+}
 // Title styles: text colour on background colour.
 const styles = [
   ["Классика", "#FFFFFF", "#000000"],
@@ -167,6 +182,40 @@ function createTitle() {
       </p>
     </div>
 
+    <div v-else-if="tab === 'transitions'" class="lib-body">
+      <label class="field"
+        >Длительность
+        <select v-model.number="transitionMs">
+          <option
+            v-for="ms in [300, 500, 800, 1000, 1500, 2000]"
+            :key="ms"
+            :value="ms"
+          >
+            {{ ms / 1000 }} с
+          </option>
+        </select>
+      </label>
+      <div class="transitions">
+        <button
+          v-for="kind in TRANSITION_KINDS"
+          :key="kind"
+          draggable="true"
+          :title="`${TRANSITION_NAMES[kind]}: нажмите — на выделенный клип, или перетащите на клип`"
+          @dragstart="dragTransition($event, kind)"
+          @click="
+            e.selection && e.setTransition(e.selection.id, kind, transitionMs)
+          "
+        >
+          <span class="icon">{{ TRANSITION_ICONS[kind] }}</span
+          >{{ TRANSITION_NAMES[kind] }}
+        </button>
+      </div>
+      <p class="hint">
+        Переход встаёт перед клипом главной дорожки и использует немного
+        исходника за краями склейки — длина фильма не меняется.
+      </p>
+    </div>
+
     <div v-else class="lib-body effects">
       <EffectsPanel section="library" />
     </div>
@@ -192,8 +241,32 @@ function createTitle() {
   border-radius: 0;
   background: transparent;
   color: var(--text-secondary);
-  padding: 10px 4px;
+  padding: 10px 2px;
   font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.transitions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.transitions button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  font-size: 11px;
+  text-align: left;
+  white-space: normal;
+  cursor: grab;
+}
+.transitions .icon {
+  font-size: 16px;
+  width: 18px;
+  text-align: center;
+  color: var(--accent);
 }
 .lib-tabs button[aria-selected="true"] {
   color: var(--text-primary);

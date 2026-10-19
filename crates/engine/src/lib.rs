@@ -242,15 +242,158 @@ fn overlay_args(
     args
 }
 /// Letterbox any source into the project frame, rate and pixel format.
+/// With `settings.fill` the source is scaled up and centre-cropped instead (no bars).
 pub(crate) fn normalize_filter(project: &Project) -> String {
     let s = &project.settings;
+    let frame = if s.fill {
+        format!(
+            "scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}",
+            w = s.width,
+            h = s.height
+        )
+    } else {
+        format!(
+            "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
+            w = s.width,
+            h = s.height
+        )
+    };
     format!(
-        "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={}/{},format=yuv420p",
-        s.fps_num,
-        s.fps_den,
-        w = s.width,
-        h = s.height
+        "{frame},setsar=1,fps={}/{},format=yuv420p",
+        s.fps_num, s.fps_den
     )
+}
+/// Main-track clip segment: normalized picture with effects, linked audio with its filters.
+fn clip_args(
+    project: &Project,
+    asset: &Asset,
+    clip: &blyacut_core::Clip,
+    out: &Path,
+) -> Vec<String> {
+    let mut args = segment_args(project, asset, clip.source_start_ms, clip.duration(), out);
+    if let Some(i) = args.iter().position(|a| a == "-af") {
+        args[i + 1] = format!("aresample=48000,apad,{}", audio_filter(clip));
+    }
+    let visual = video_effect_filters(clip);
+    if !visual.is_empty() {
+        if let Some(i) = args.iter().position(|a| a == "-vf") {
+            args[i + 1].push(',');
+            args[i + 1].push_str(&visual);
+            args[i + 1].push_str(",format=yuv420p");
+        }
+    }
+    args
+}
+/// One segment of length D centred on the cut: the outgoing clip runs past its end, the
+/// incoming one starts early (handles), blended with `xfade` and `acrossfade`.
+fn transition_args(
+    project: &Project,
+    (a_asset, a): (&Asset, &blyacut_core::Clip),
+    (b_asset, b): (&Asset, &blyacut_core::Clip),
+    transition: &blyacut_core::Transition,
+    out: &Path,
+) -> Vec<String> {
+    let (before, _) = blyacut_core::transition_halves(transition);
+    let d = transition.duration_ms as u64;
+    let mut args: Vec<String> = [
+        "-nostdin",
+        "-v",
+        "error",
+        "-n",
+        "-protocol_whitelist",
+        "file,pipe",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let mut add = |asset: &Asset, start: u64| {
+        let mut input = media_input(project, asset, start);
+        let at = input.len() - 2;
+        input.splice(at..at, ["-t".to_string(), sec(d)]);
+        args.extend(input);
+    };
+    add(a_asset, a.source_end_ms.saturating_sub(before));
+    // Stills have unlimited handles: their single frame loops.
+    add(b_asset, b.source_start_ms.saturating_sub(before));
+    let audio = |asset: &Asset, video_input: usize, next: &mut usize| {
+        if asset.has_audio {
+            format!("{video_input}:a:0")
+        } else {
+            *next += 1;
+            format!("{}:a:0", *next - 1)
+        }
+    };
+    let mut next = 2;
+    let (aa, ab) = (audio(a_asset, 0, &mut next), audio(b_asset, 1, &mut next));
+    for _ in 2..next {
+        args.extend([
+            "-f".into(),
+            "lavfi".into(),
+            "-t".into(),
+            sec(d),
+            "-i".into(),
+            "anullsrc=r=48000:cl=stereo".into(),
+        ]);
+    }
+    // Linked-audio effects and gain apply; clip fades belong to the clip bodies.
+    let sound = |c: &blyacut_core::Clip| {
+        let mut c = c.clone();
+        c.fade_in_ms = 0;
+        c.fade_out_ms = 0;
+        audio_filter(&c)
+    };
+    let picture = |c: &blyacut_core::Clip| {
+        let effects = video_effect_filters(c);
+        let base = normalize_filter(project);
+        if effects.is_empty() {
+            format!("{base},settb=AVTB")
+        } else {
+            format!("{base},{effects},format=yuv420p,settb=AVTB")
+        }
+    };
+    let graph = format!(
+        "[0:v]{}[va];[1:v]{}[vb];[va][vb]xfade=transition={}:duration={}:offset=0,format=yuv420p[v];\
+         [{aa}]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=end={},{}[xa];\
+         [{ab}]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=end={},{}[xb];\
+         [xa][xb]acrossfade=d={}[a]",
+        picture(a),
+        picture(b),
+        transition.kind.name(),
+        sec(d),
+        sec(d),
+        sound(a),
+        sec(d),
+        sound(b),
+        sec(d)
+    );
+    args.extend([
+        "-filter_complex".into(),
+        graph,
+        "-map".into(),
+        "[v]".into(),
+        "-map".into(),
+        "[a]".into(),
+        "-t".into(),
+        sec(d),
+        "-c:v".into(),
+        "libx264".into(),
+        "-preset".into(),
+        "veryfast".into(),
+        "-crf".into(),
+        "20".into(),
+        "-c:a".into(),
+        "aac".into(),
+        "-ar".into(),
+        "48000".into(),
+        "-ac".into(),
+        "2".into(),
+        "-video_track_timescale".into(),
+        "90000".into(),
+        "-progress".into(),
+        "pipe:1".into(),
+        out.to_string_lossy().into(),
+    ]);
+    args
 }
 pub(crate) fn sec(ms: u64) -> String {
     format!("{}.{:03}", ms / 1000, ms % 1000)
@@ -444,53 +587,65 @@ pub fn render(
     let mut list = String::new();
     let mut done = 0;
     let mut segment_index = 0;
-    let mut encode =
-        |asset: Option<&Asset>, clip: Option<&blyacut_core::Clip>, duration: u64| -> Result<()> {
-            let name = format!("segment-{segment_index}.mp4");
-            segment_index += 1;
-            let path = scratch.0.join(&name);
-            let args = if let (Some(asset), Some(clip)) = (asset, clip) {
-                if !asset.path.is_absolute() || !asset.path.is_file() {
-                    return Err(format!("Missing media: {}", asset.path.display()));
-                }
-                let mut args = segment_args(project, asset, clip.source_start_ms, duration, &path);
-                if let Some(i) = args.iter().position(|a| a == "-af") {
-                    args[i + 1] = format!("aresample=48000,apad,{}", audio_filter(clip));
-                }
-                let visual = video_effect_filters(clip);
-                if !visual.is_empty() {
-                    if let Some(i) = args.iter().position(|a| a == "-vf") {
-                        args[i + 1].push(',');
-                        args[i + 1].push_str(&visual);
-                        args[i + 1].push_str(",format=yuv420p");
-                    }
-                }
-                args
-            } else {
-                black_args(project, duration, &path)
-            };
-            run(&args, &cancel, &log, |ms| {
-                progress((done + ms.min(duration)) as f64 / end as f64 * 0.75)
-            })?;
-            list.push_str(&format!("file '{name}'\n"));
-            done += duration;
-            Ok(())
-        };
-    let mut cursor = 0;
-    for clip in clips {
-        if clip.position_ms > cursor {
-            encode(None, None, clip.position_ms - cursor)?;
-        }
+    let mut encode = |args: &dyn Fn(&Path) -> Vec<String>, duration: u64| -> Result<()> {
+        let name = format!("segment-{segment_index}.mp4");
+        segment_index += 1;
+        let path = scratch.0.join(&name);
+        run(&args(&path), &cancel, &log, |ms| {
+            progress((done + ms.min(duration)) as f64 / end as f64 * 0.75)
+        })?;
+        list.push_str(&format!("file '{name}'\n"));
+        done += duration;
+        Ok(())
+    };
+    let asset_of = |clip: &blyacut_core::Clip| -> Result<&Asset> {
         let asset = project
             .assets
             .iter()
             .find(|a| a.id == clip.asset_id)
             .ok_or("Unknown asset")?;
-        encode(Some(asset), Some(clip), clip.duration())?;
+        if !asset.path.is_absolute() || !asset.path.is_file() {
+            return Err(format!("Missing media: {}", asset.path.display()));
+        }
+        Ok(asset)
+    };
+    let mut cursor = 0;
+    for (i, clip) in clips.iter().enumerate() {
+        let transition = clip.transition_in.filter(|_| i > 0);
+        if transition.is_none() && clip.position_ms > cursor {
+            let gap = clip.position_ms - cursor;
+            encode(&|path| black_args(project, gap, path), gap)?;
+        }
+        let asset = asset_of(clip)?;
+        if let Some(t) = &transition {
+            let prev = &clips[i - 1];
+            let prev_asset = asset_of(prev)?;
+            encode(
+                &|path| transition_args(project, (prev_asset, prev), (asset, clip), t, path),
+                t.duration_ms as u64,
+            )?;
+        }
+        // The clip body excludes the parts its transitions render.
+        let after_in = transition
+            .map(|t| blyacut_core::transition_halves(&t).1)
+            .unwrap_or(0);
+        let before_out = clips
+            .get(i + 1)
+            .and_then(|n| n.transition_in)
+            .map(|t| blyacut_core::transition_halves(&t).0)
+            .unwrap_or(0);
+        let mut body = clip.clone();
+        body.source_start_ms += after_in;
+        body.source_end_ms -= before_out;
+        body.fade_in_ms = body.fade_in_ms.saturating_sub(after_in);
+        body.fade_out_ms = body.fade_out_ms.saturating_sub(before_out);
+        let length = body.duration();
+        encode(&|path| clip_args(project, asset, &body, path), length)?;
         cursor = clip.position_ms + clip.duration();
     }
     if end > cursor {
-        encode(None, None, end - cursor)?;
+        let tail = end - cursor;
+        encode(&|path| black_args(project, tail, path), tail)?;
     }
     std::fs::write(scratch.0.join("concat.txt"), list).map_err(|e| e.to_string())?;
     let base = scratch.0.join("base.mp4");

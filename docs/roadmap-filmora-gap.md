@@ -20,23 +20,23 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 | Effects & filters | Large library | 43 steps, 36 presets, custom JSON recipes | — |
 | Agent / automation editing | Not a focus | ✔ MCP, headless autonomous studio | BlyaCut's edge |
 | Titles | 200+ animated templates, text editor | Still title cards (agents only) | **P1**: title tab in UI, then text overlay |
-| Multiple video tracks / PiP / overlays | ✔ | Export rejects >1 video track | **P1** |
-| Transitions | 100+ in categories | — | **P1** (crossfade, dip to black, wipe) |
+| Multiple video tracks / PiP / overlays | ✔ | ✔ overlay tracks with position/scale/opacity | — |
+| Transitions | 100+ in categories | ✔ 20 kinds, handle-based, length-preserving | more kinds, monitor preview |
 | Speed, reverse, freeze frame, speed curves | ✔ | — | P2 |
 | Keyframes (position/scale/opacity/volume) | ✔ | — | P2 |
-| Crop/scale/position | ✔ | — | P2 (needs compositor) |
+| Crop/scale/position | ✔ | ✔ for overlays; crop-to-fill for the frame | per-clip crop |
 | Auto subtitles (speech-to-text) | ✔ | Planned (whisper.cpp) | P2 |
 | Audio ducking | ✔ | Agent can set gains manually | P2 |
 | Chroma key | ✔ | — | P3 |
 | Motion / camera tracking, AI generation | ✔ | — | P3 / out of scope locally |
-| Export presets (resolution, vertical, social) | ✔ | Fixed 1080p30 settings | P2 |
+| Export presets (resolution, vertical, social) | ✔ | ✔ 1080p/720p/4K, 60 fps, 9:16, 1:1 | bitrate/codec choice |
 | Thumbnails/waveforms on timeline | ✔ | Decorative stripes | P2 |
 
 ## Roadmap
 
 **Phase 1 — interface (now).** Library tabs (Media · Titles · Effects) with drag onto clips; tabbed inspector (Clip · Audio · Effects) with timecode fields; one compact header with undo/redo and export progress; no hint row; consistent Russian UI; title cards from the UI.
 
-**Phase 2 — composition (in progress: overlay tracks, PiP, stills and text over video are done).** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
+**Phase 2 — composition (done: overlay tracks, PiP, stills, legible text over video, 20 transitions, format presets incl. vertical crop-to-fill).** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
 
 **Phase 3 — motion and time.** Speed/reverse/freeze, keyframes, ducking, whisper.cpp subtitles, timeline thumbnails and waveforms.
 

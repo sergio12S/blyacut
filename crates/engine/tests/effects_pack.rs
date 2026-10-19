@@ -17,6 +17,7 @@ fn clip() -> Clip {
         fade_out_ms: 0,
         effects: vec![],
         transform: None,
+        transition_in: None,
     }
 }
 

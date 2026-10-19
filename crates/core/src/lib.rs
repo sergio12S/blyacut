@@ -19,6 +19,9 @@ pub struct Settings {
     pub height: u32,
     pub fps_num: u32,
     pub fps_den: u32,
+    /// Fill the frame by cropping (e.g. landscape footage in a vertical project) instead of letterboxing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fill: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Asset {
@@ -54,6 +57,71 @@ pub struct Clip {
     /// Placement on overlay video tracks; `None` fills the frame like the main track.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transform: Option<Transform>,
+    /// Transition from the previous main-track clip into this one, centred on the cut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transition_in: Option<Transition>,
+}
+/// Visual transitions (FFmpeg `xfade` names); linked audio always crossfades.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TransitionKind {
+    Fade,
+    Fadeblack,
+    Fadewhite,
+    Dissolve,
+    Wipeleft,
+    Wiperight,
+    Wipeup,
+    Wipedown,
+    Slideleft,
+    Slideright,
+    Slideup,
+    Slidedown,
+    Smoothleft,
+    Smoothright,
+    Circleopen,
+    Circleclose,
+    Radial,
+    Pixelize,
+    Zoomin,
+    Hblur,
+}
+impl TransitionKind {
+    pub const ALL: [Self; 20] = [
+        Self::Fade,
+        Self::Fadeblack,
+        Self::Fadewhite,
+        Self::Dissolve,
+        Self::Wipeleft,
+        Self::Wiperight,
+        Self::Wipeup,
+        Self::Wipedown,
+        Self::Slideleft,
+        Self::Slideright,
+        Self::Slideup,
+        Self::Slidedown,
+        Self::Smoothleft,
+        Self::Smoothright,
+        Self::Circleopen,
+        Self::Circleclose,
+        Self::Radial,
+        Self::Pixelize,
+        Self::Zoomin,
+        Self::Hblur,
+    ];
+    /// The `xfade` transition name.
+    pub fn name(self) -> String {
+        serde_json::to_value(self)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_default()
+    }
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Transition {
+    pub kind: TransitionKind,
+    pub duration_ms: u32,
 }
 /// Overlay placement in thousandths: centre position as a fraction of the frame,
 /// scale relative to fitting the frame, and opacity.
@@ -126,6 +194,7 @@ impl Default for Project {
                 height: 1080,
                 fps_num: 30,
                 fps_den: 1,
+                fill: false,
             },
             assets: vec![],
             tracks: vec![
@@ -255,11 +324,14 @@ impl Project {
         if self.tracks.is_empty() {
             return Err("Project needs a track".into());
         }
+        let main = self.main_video_track().map(|t| t.id.as_str());
         for t in &self.tracks {
             if t.id.is_empty() || !ids.insert(&t.id) {
                 return Err("Duplicate track ID".into());
             }
             let mut end = 0;
+            // Previous clip, its asset, and how much of its start a transition consumes.
+            let mut previous: Option<(&Clip, &Asset, u64)> = None;
             for c in &t.clips {
                 let a = self
                     .assets
@@ -309,6 +381,31 @@ impl Project {
                 if c.position_ms < end {
                     return Err("Clips overlap or are out of order on a track".into());
                 }
+                let mut consumed_in = 0;
+                if let Some(tr) = &c.transition_in {
+                    if !(100..=5000).contains(&tr.duration_ms) {
+                        return Err("Transition duration must be 100..=5000 ms".into());
+                    }
+                    let Some((prev, prev_asset, prev_in)) = previous.filter(|(p, ..)| {
+                        main == Some(t.id.as_str()) && p.position_ms + p.duration() == c.position_ms
+                    }) else {
+                        return Err("A transition needs the clip to directly follow another main-track clip".into());
+                    };
+                    let (before, after) = transition_halves(tr);
+                    if (!prev_asset.still && prev.source_end_ms + after > prev_asset.duration_ms)
+                        || (!a.still && c.source_start_ms < before)
+                    {
+                        return Err(format!(
+                            "A {} ms transition needs {} ms of media after the outgoing clip's end and {} ms before the incoming clip's start; trim the clips or shorten the transition",
+                            tr.duration_ms, after, before
+                        ));
+                    }
+                    if prev.duration() <= prev_in + before || c.duration() <= after {
+                        return Err("Transition is longer than the clips around it".into());
+                    }
+                    consumed_in = after;
+                }
+                previous = Some((c, a, consumed_in));
                 end = c.position_ms + c.duration();
             }
         }
@@ -321,6 +418,15 @@ pub enum Edit {
     SetEffects {
         clip_id: String,
         effects: Vec<EffectRecipe>,
+    },
+    /// Change the output frame, rate and letterbox/fill mode.
+    SetSettings {
+        settings: Settings,
+    },
+    /// Transition into a main-track clip from the clip before it; `null` removes it.
+    SetTransition {
+        clip_id: String,
+        transition: Option<Transition>,
     },
     /// Place an overlay clip; `null` resets it to fill the frame.
     SetTransform {
@@ -366,6 +472,25 @@ pub enum Edit {
         index: usize,
     },
 }
+/// Drop transitions whose clip no longer directly follows another main-track clip.
+fn settle_transitions(p: &mut Project) {
+    let main = p.main_video_track().map(|t| t.id.clone());
+    for t in &mut p.tracks {
+        let is_main = main.as_deref() == Some(t.id.as_str());
+        let mut previous_end = None;
+        for c in &mut t.clips {
+            if c.transition_in.is_some() && (!is_main || previous_end != Some(c.position_ms)) {
+                c.transition_in = None;
+            }
+            previous_end = Some(c.position_ms + c.duration());
+        }
+    }
+}
+/// Split of a transition around the cut: (before the cut, after the cut).
+pub fn transition_halves(t: &Transition) -> (u64, u64) {
+    let d = t.duration_ms as u64;
+    (d / 2, d - d / 2)
+}
 fn ripple(t: &mut Track) {
     let mut pos = 0;
     for c in &mut t.clips {
@@ -396,6 +521,10 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             });
             return p.validate();
         }
+        Edit::SetSettings { settings } => {
+            p.settings = settings.clone();
+            return p.validate();
+        }
         Edit::MoveClip {
             clip_id,
             track_id,
@@ -420,6 +549,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             clip.position_ms = *position_ms;
             p.tracks[target].clips.push(clip);
             p.tracks[target].clips.sort_by_key(|c| c.position_ms);
+            settle_transitions(p);
             return p.validate();
         }
         _ => {}
@@ -456,6 +586,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             fade_out_ms: 0,
             effects: vec![],
             transform: None,
+            transition_in: None,
         });
     } else {
         let cid = match &edit {
@@ -465,7 +596,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             | Edit::ReorderClip { clip_id, .. }
             | Edit::SetAudio { clip_id, .. }
             | Edit::SetEffects { clip_id, .. }
-            | Edit::SetTransform { clip_id, .. } => clip_id,
+            | Edit::SetTransform { clip_id, .. }
+            | Edit::SetTransition { clip_id, .. } => clip_id,
             _ => unreachable!(),
         };
         let t = p
@@ -506,6 +638,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                     fade_out_ms: c.fade_out_ms.min(c.source_end_ms - cut),
                     effects: c.effects.clone(),
                     transform: c.transform,
+                    transition_in: None,
                 };
                 c.source_end_ms = cut;
                 c.fade_in_ms = c.fade_in_ms.min(c.duration());
@@ -537,6 +670,15 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             Edit::SetTransform { transform, .. } => {
                 t.clips[i].transform = transform;
             }
+            Edit::SetTransition { transition, .. } => {
+                if !ripples {
+                    return Err("Transitions join clips on the main video track".into());
+                }
+                if transition.is_some() && i == 0 {
+                    return Err("The first clip has no previous clip to transition from".into());
+                }
+                t.clips[i].transition_in = transition;
+            }
             Edit::SetAudio {
                 gain_milli,
                 fade_in_ms,
@@ -564,6 +706,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             _ => unreachable!(),
         }
     }
+    settle_transitions(p);
     p.validate()
 }
 #[derive(Default)]

@@ -8,7 +8,9 @@ import type {
   Clip,
   Snapshot,
   EffectRecipe,
+  Settings,
   Transform,
+  TransitionKind,
 } from "../types";
 import { isOverlayTrack, isVideoStep } from "../types";
 export const useEditor = defineStore("editor", () => {
@@ -188,6 +190,36 @@ export const useEditor = defineStore("editor", () => {
       },
     ]);
     selected.value = clipId;
+  }
+  /** Transition into a main-track clip from the one before it (null removes it). */
+  async function setTransition(
+    clipId: string,
+    kind: TransitionKind | null,
+    durationMs = 800,
+  ) {
+    const main = project.value?.tracks.find((t) => t.kind === "video");
+    const index = main?.clips.findIndex((c) => c.id === clipId) ?? -1;
+    if (index < 1) {
+      error.value =
+        index === 0
+          ? "У первого клипа нет предыдущего — переход ставится на второй и следующие клипы"
+          : "Переходы ставятся между клипами главной видеодорожки";
+      return;
+    }
+    selected.value = clipId;
+    await edit({
+      operation: "set_transition",
+      clip_id: clipId,
+      transition: kind ? { kind, duration_ms: durationMs } : null,
+    });
+    const handles = /needs (\d+) ms of media after .* and (\d+) ms before/.exec(
+      error.value,
+    );
+    if (handles)
+      error.value = `Для перехода ${durationMs / 1000} с нужно ${Number(handles[1]) / 1000} с исходника после конца предыдущего клипа и ${Number(handles[2]) / 1000} с до начала этого. Обрежьте клипы (тяните края) или сократите переход.`;
+  }
+  async function setSettings(settings: Settings) {
+    await edit({ operation: "set_settings", settings });
   }
   async function addVideoTrack() {
     await edit({
@@ -400,6 +432,8 @@ export const useEditor = defineStore("editor", () => {
     applyRecipe,
     createTitle,
     placeOverlay,
+    setTransition,
+    setSettings,
     draftTransform,
     addVideoTrack,
     createTextOverlay,

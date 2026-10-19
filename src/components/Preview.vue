@@ -223,6 +223,7 @@ onUnmounted(() => {
         <img
           v-if="mainStill && clip"
           class="layer-main"
+          :class="{ fill: e.project?.settings.fill }"
           :src="assetSource(clip.asset_id)"
           :style="videoPreviewStyle"
           alt=""
@@ -230,6 +231,7 @@ onUnmounted(() => {
         <video
           v-if="source"
           ref="video"
+          :class="{ fill: e.project?.settings.fill }"
           :src="source"
           :style="videoPreviewStyle"
           crossorigin="anonymous"
@@ -330,6 +332,10 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+.frame > video.fill:not(.layer),
+.frame > .layer-main.fill {
+  object-fit: cover;
 }
 .layer {
   position: absolute;

@@ -13,6 +13,7 @@ import EffectsPanel from "./components/EffectsPanel.vue";
 import LibraryPanel from "./components/LibraryPanel.vue";
 import TimecodeField from "./components/TimecodeField.vue";
 import TransformControls from "./components/TransformControls.vue";
+import TransitionControl from "./components/TransitionControl.vue";
 import type { Snapshot } from "./types";
 import { isOverlayTrack, time } from "./types";
 const e = useEditor();
@@ -50,6 +51,74 @@ function dockKey(event: KeyboardEvent) {
 const overlaySelected = computed(
   () => !!e.selectionTrack && isOverlayTrack(e.project, e.selectionTrack),
 );
+// Output presets; vertical and square crop landscape footage to fill the frame.
+const formats = [
+  {
+    key: "1920x1080@30",
+    label: "Горизонтальное 1080p · 30 к/с",
+    w: 1920,
+    h: 1080,
+    fps: 30,
+    fill: false,
+  },
+  {
+    key: "1920x1080@60",
+    label: "Горизонтальное 1080p · 60 к/с",
+    w: 1920,
+    h: 1080,
+    fps: 60,
+    fill: false,
+  },
+  {
+    key: "1280x720@30",
+    label: "Горизонтальное 720p · 30 к/с",
+    w: 1280,
+    h: 720,
+    fps: 30,
+    fill: false,
+  },
+  {
+    key: "3840x2160@30",
+    label: "4K UHD · 30 к/с",
+    w: 3840,
+    h: 2160,
+    fps: 30,
+    fill: false,
+  },
+  {
+    key: "1080x1920@30+fill",
+    label: "Вертикальное 9:16 (Shorts, TikTok, Reels)",
+    w: 1080,
+    h: 1920,
+    fps: 30,
+    fill: true,
+  },
+  {
+    key: "1080x1080@30+fill",
+    label: "Квадрат 1:1",
+    w: 1080,
+    h: 1080,
+    fps: 30,
+    fill: true,
+  },
+];
+const formatKey = computed(() => {
+  const s = e.project?.settings;
+  if (!s) return "";
+  const fps = Math.round(s.fps_num / s.fps_den);
+  return `${s.width}x${s.height}@${fps}${s.fill ? "+fill" : ""}`;
+});
+function applyFormat(key: string) {
+  const f = formats.find((f) => f.key === key);
+  if (f)
+    void e.setSettings({
+      width: f.w,
+      height: f.h,
+      fps_num: f.fps,
+      fps_den: 1,
+      fill: f.fill,
+    });
+}
 const assetName = computed(
   () =>
     e.project?.assets.find((a) => a.id === e.selection?.asset_id)?.name ?? "",
@@ -300,6 +369,7 @@ async function render() {
           </div>
           <p class="muted">Enter — применить · ↑/↓ — ±0,1 с (⇧ ±1 с)</p>
           <TransformControls v-if="overlaySelected" />
+          <TransitionControl v-else />
           <div class="clip-actions">
             <button title="S" @click="e.split()">✂ Разрезать</button
             ><button class="danger" title="⌫" @click="e.remove()">
@@ -355,6 +425,24 @@ async function render() {
         <span class="eyebrow">ЭКСПОРТ</span>
         <h2>Сохранить видео</h2>
         <p>H.264 · AAC · MP4</p>
+        <label class="format"
+          >Формат
+          <select
+            :value="formatKey"
+            aria-label="Формат проекта"
+            @change="applyFormat(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="f in formats" :key="f.key" :value="f.key">
+              {{ f.label }}
+            </option>
+            <option
+              v-if="!formats.some((f) => f.key === formatKey)"
+              :value="formatKey"
+            >
+              Свой: {{ formatKey }}
+            </option>
+          </select>
+        </label>
         <div class="export-spec">
           <span
             >Размер<strong

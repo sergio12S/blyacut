@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useEditor } from "../stores/editor";
+import { TRANSITION_MIME, TRANSITION_NAMES } from "../transitions";
 import {
   RECIPE_MIME,
   isOverlayTrack,
@@ -31,13 +32,25 @@ const labels: Record<GesturePlan["label"], string> = {
 };
 const dropTarget = ref("");
 function acceptRecipe(event: DragEvent, clipId: string) {
-  if (!event.dataTransfer?.types.includes(RECIPE_MIME)) return;
+  const data = event.dataTransfer;
+  if (!data) return;
+  if (
+    !data.types.includes(RECIPE_MIME) &&
+    !data.types.includes(TRANSITION_MIME)
+  )
+    return;
   event.preventDefault();
-  event.dataTransfer.dropEffect = "copy";
+  data.dropEffect = "copy";
   dropTarget.value = clipId;
 }
 function dropRecipe(event: DragEvent, clipId: string) {
   dropTarget.value = "";
+  const transition = event.dataTransfer?.getData(TRANSITION_MIME);
+  if (transition) {
+    const { kind, duration_ms } = JSON.parse(transition);
+    void e.setTransition(clipId, kind, duration_ms);
+    return;
+  }
   const raw = event.dataTransfer?.getData(RECIPE_MIME);
   if (raw) void e.applyRecipe(clipId, JSON.parse(raw));
 }
@@ -397,6 +410,14 @@ function position(c: Clip) {
                   class="trim-handle end"
                   data-edge="end"
                   title="Тяните, чтобы обрезать конец"
+                />
+                <span
+                  v-if="c.transition_in"
+                  class="transition-mark"
+                  :title="`${TRANSITION_NAMES[c.transition_in.kind]} · ${c.transition_in.duration_ms / 1000} с`"
+                  :style="{
+                    width: (c.transition_in.duration_ms / 2000) * zoom + 'px',
+                  }"
                 />
                 <span class="clip-label">{{
                   e.project?.assets.find((a) => a.id === c.asset_id)?.name

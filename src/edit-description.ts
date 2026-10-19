@@ -1,4 +1,5 @@
 import { time, type Edit, type Project } from "./types";
+import { TRANSITION_NAMES } from "./transitions";
 
 /** Human review text; editing and validation remain in the Rust core. */
 export function describeEdit(
@@ -34,6 +35,14 @@ export function describeEdit(
       return `Звук «${clip(edit.clip_id)}»: ${edit.gain_milli / 10} %, появление ${time(edit.fade_in_ms)}, затухание ${time(edit.fade_out_ms)}`;
     case "set_effects":
       return `Эффекты «${clip(edit.clip_id)}»: ${edit.effects.map((f) => f.name).join(" → ") || "убрать все"}`;
+    case "set_settings": {
+      const s = edit.settings;
+      return `Формат ${s.width}×${s.height}, ${Math.round((s.fps_num / s.fps_den) * 100) / 100} к/с${s.fill ? ", заполнить кадр" : ""}`;
+    }
+    case "set_transition":
+      return edit.transition
+        ? `Переход «${TRANSITION_NAMES[edit.transition.kind]}» ${edit.transition.duration_ms / 1000} с перед «${clip(edit.clip_id)}»`
+        : `Убрать переход перед «${clip(edit.clip_id)}»`;
     case "set_transform": {
       const t = edit.transform;
       return t

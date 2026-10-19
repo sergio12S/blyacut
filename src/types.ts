@@ -119,6 +119,8 @@ export interface Clip {
   fade_out_ms: number;
   effects: EffectRecipe[];
   transform?: Transform | null;
+  /** Transition from the previous main-track clip, centred on the cut. */
+  transition_in?: Transition | null;
 }
 export interface Track {
   id: string;
@@ -126,11 +128,44 @@ export interface Track {
   kind: "video" | "audio" | "text";
   clips: Clip[];
 }
+export interface Settings {
+  width: number;
+  height: number;
+  fps_num: number;
+  fps_den: number;
+  /** Crop to fill the frame instead of letterboxing. */
+  fill?: boolean;
+}
+export type TransitionKind =
+  | "fade"
+  | "fadeblack"
+  | "fadewhite"
+  | "dissolve"
+  | "wipeleft"
+  | "wiperight"
+  | "wipeup"
+  | "wipedown"
+  | "slideleft"
+  | "slideright"
+  | "slideup"
+  | "slidedown"
+  | "smoothleft"
+  | "smoothright"
+  | "circleopen"
+  | "circleclose"
+  | "radial"
+  | "pixelize"
+  | "zoomin"
+  | "hblur";
+export interface Transition {
+  kind: TransitionKind;
+  duration_ms: number;
+}
 export interface Project {
   version: number;
   id: string;
   name: string;
-  settings: { width: number; height: number; fps_num: number; fps_den: number };
+  settings: Settings;
   assets: Asset[];
   tracks: Track[];
 }
@@ -153,6 +188,12 @@ export interface AgentConnection {
 export type Edit =
   | { operation: "set_effects"; clip_id: string; effects: EffectRecipe[] }
   | { operation: "set_transform"; clip_id: string; transform: Transform | null }
+  | { operation: "set_settings"; settings: Settings }
+  | {
+      operation: "set_transition";
+      clip_id: string;
+      transition: Transition | null;
+    }
   | {
       operation: "add_track";
       track_id: string;

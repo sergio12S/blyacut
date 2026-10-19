@@ -91,8 +91,29 @@ function move(positionMs = e.selection?.position_ms ?? 0) {
         </select></label
       >
     </div>
+    <label v-if="e.selectionTrack?.kind === 'audio'" class="track"
+      ><span>Приглушать под голос</span
+      ><select
+        :value="e.selection.duck_db ?? 0"
+        aria-label="Приглушение под голос"
+        @change="
+          e.edit({
+            operation: 'set_ducking',
+            clip_id: e.selection!.id,
+            duck_db: Number(($event.target as HTMLSelectElement).value),
+          })
+        "
+      >
+        <option :value="0">Выкл.</option>
+        <option v-for="db in [6, 12, 18, 24]" :key="db" :value="db">
+          на {{ db }} дБ, пока звучит голос
+        </option>
+      </select></label
+    >
     <p class="note">
       Изменения применяются сразу. Видео двигается перетаскиванием на таймлайне.
+      Голос — это звук главного видео и неприглушаемые звуковые клипы; в
+      мониторе приглушение не слышно, только в экспорте.
     </p>
   </div>
 </template>

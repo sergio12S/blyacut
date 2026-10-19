@@ -20,6 +20,7 @@ fn clip() -> Clip {
         transition_in: None,
         speed_milli: 1000,
         reverse: false,
+        duck_db: 0,
     }
 }
 

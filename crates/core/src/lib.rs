@@ -66,6 +66,13 @@ pub struct Clip {
     /// Play the source range backwards.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reverse: bool,
+    /// Audio-track clips only: duck this clip by about this many dB while voice plays
+    /// (main-video sound and non-ducking audio clips). 0 = off.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub duck_db: u8,
+}
+fn is_zero(v: &u8) -> bool {
+    *v == 0
 }
 fn is_unity(v: &u16) -> bool {
     *v == 1000
@@ -396,6 +403,10 @@ impl Project {
                         );
                     }
                 }
+                if c.duck_db != 0 && (t.kind != TrackKind::Audio || !(3..=30).contains(&c.duck_db))
+                {
+                    return Err("Ducking applies to audio-track clips, 3..=30 dB".into());
+                }
                 if !(250..=4000).contains(&c.speed_milli) {
                     return Err("Clip speed must be 250..=4000 (0.25×–4×)".into());
                 }
@@ -469,6 +480,11 @@ pub enum Edit {
         /// Trim the outgoing end / incoming start just enough to create the needed handles.
         #[serde(default)]
         make_room: bool,
+    },
+    /// Duck an audio-track clip (music) under voice by about `duck_db` (0 = off, 3..=30).
+    SetDucking {
+        clip_id: String,
+        duck_db: u8,
     },
     /// Retime a clip: speed in thousandths (250..=4000) and direction.
     SetSpeed {
@@ -638,6 +654,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             transition_in: None,
             speed_milli: 1000,
             reverse: false,
+            duck_db: 0,
         });
     } else {
         let cid = match &edit {
@@ -649,7 +666,8 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             | Edit::SetEffects { clip_id, .. }
             | Edit::SetTransform { clip_id, .. }
             | Edit::SetTransition { clip_id, .. }
-            | Edit::SetSpeed { clip_id, .. } => clip_id,
+            | Edit::SetSpeed { clip_id, .. }
+            | Edit::SetDucking { clip_id, .. } => clip_id,
             _ => unreachable!(),
         };
         let t = p
@@ -699,6 +717,7 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
                     transition_in: None,
                     speed_milli: c.speed_milli,
                     reverse: c.reverse,
+                    duck_db: c.duck_db,
                 };
                 if right.source_start_ms >= right.source_end_ms
                     || cut == c.source_start_ms
@@ -742,6 +761,9 @@ fn apply(p: &mut Project, edit: Edit) -> Result<()> {
             }
             Edit::SetTransform { transform, .. } => {
                 t.clips[i].transform = transform;
+            }
+            Edit::SetDucking { duck_db, .. } => {
+                t.clips[i].duck_db = duck_db;
             }
             Edit::SetSpeed {
                 speed_milli,

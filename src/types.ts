@@ -124,6 +124,8 @@ export interface Clip {
   /** Speed in thousandths (1000 = normal). */
   speed_milli?: number;
   reverse?: boolean;
+  /** Audio-track clips: dB to duck under voice (0 = off). */
+  duck_db?: number;
 }
 export interface Track {
   id: string;
@@ -192,6 +194,7 @@ export type Edit =
   | { operation: "set_effects"; clip_id: string; effects: EffectRecipe[] }
   | { operation: "set_transform"; clip_id: string; transform: Transform | null }
   | { operation: "set_settings"; settings: Settings }
+  | { operation: "set_ducking"; clip_id: string; duck_db: number }
   | {
       operation: "set_speed";
       clip_id: string;

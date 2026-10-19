@@ -832,7 +832,6 @@ pub fn mix_args(
         base.to_string_lossy().into(),
     ];
     let mut filters = vec!["[0:a]asetpts=PTS-STARTPTS[base]".to_string()];
-    let mut inputs = String::from("[base]");
     for (i, c) in clips.iter().enumerate() {
         let a = project
             .assets
@@ -854,9 +853,54 @@ pub fn mix_args(
         ]);
         let timing = audio_timing(c).map(|t| format!("{t},")).unwrap_or_default();
         filters.push(format!("[{}:a:0]asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,{timing}{},atrim=duration={},adelay={}|{}[a{}]",i+1,audio_filter(c),sec(c.duration()),c.position_ms,c.position_ms,i));
-        inputs.push_str(&format!("[a{i}]"));
     }
-    filters.push(format!("{}amix=inputs={}:duration=first:dropout_transition=0:normalize=0,alimiter=limit=1:level=0:latency=1[mixed]",inputs,clips.len()+1));
+    let sum = |labels: &[String], out: &str| {
+        if labels.len() == 1 {
+            format!("{}anull[{out}]", labels[0])
+        } else {
+            format!(
+                "{}amix=inputs={}:duration=longest:dropout_transition=0:normalize=0[{out}]",
+                labels.concat(),
+                labels.len()
+            )
+        }
+    };
+    let ducked: Vec<usize> = (0..clips.len()).filter(|&i| clips[i].duck_db > 0).collect();
+    let mut inputs: Vec<String> = vec!["[base]".into()];
+    if ducked.is_empty() {
+        inputs.extend((0..clips.len()).map(|i| format!("[a{i}]")));
+    } else {
+        // Voice bus = main-video sound + non-ducking clips; it keys a compressor on each music clip.
+        let voice: Vec<String> = std::iter::once("[base]".to_string())
+            .chain(
+                (0..clips.len())
+                    .filter(|i| !ducked.contains(i))
+                    .map(|i| format!("[a{i}]")),
+            )
+            .collect();
+        filters.push(sum(&voice, "voice"));
+        let keys: String = (0..ducked.len()).map(|k| format!("[key{k}]")).collect();
+        filters.push(format!(
+            "[voice]asplit={}[voicemix]{keys}",
+            ducked.len() + 1
+        ));
+        inputs = vec!["[voicemix]".into()];
+        for (k, &i) in ducked.iter().enumerate() {
+            // Any audible voice drives the compressor almost to silence; `mix` keeps the dry
+            // share 10^(-duck/20), so the depth is ≈duck_db whatever the voice level.
+            let dry = 10f64.powf(-(clips[i].duck_db as f64) / 20.0);
+            filters.push(format!(
+                "[a{i}][key{k}]sidechaincompress=threshold=0.00178:ratio=20:attack=20:release=250:knee=2:makeup=1:mix={:.4}[d{i}]",
+                1.0 - dry
+            ));
+            inputs.push(format!("[d{i}]"));
+        }
+    }
+    filters.push(format!(
+        "{}amix=inputs={}:duration=first:dropout_transition=0:normalize=0,alimiter=limit=1:level=0:latency=1[mixed]",
+        inputs.concat(),
+        inputs.len()
+    ));
     args.extend([
         "-filter_complex".into(),
         filters.join(";"),

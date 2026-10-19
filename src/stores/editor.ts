@@ -139,7 +139,7 @@ export const useEditor = defineStore("editor", () => {
     await edit({
       operation: "add_track",
       track_id: crypto.randomUUID(),
-      name: `Звук ${(project.value?.tracks.filter((t) => t.kind === "audio").length ?? 0) + 1}`,
+      name: `Audio ${(project.value?.tracks.filter((t) => t.kind === "audio").length ?? 0) + 1}`,
       kind: "audio",
     });
   }
@@ -172,7 +172,7 @@ export const useEditor = defineStore("editor", () => {
             {
               operation: "add_track",
               track_id: trackId,
-              name: `Видео ${videoCount + 1}`,
+              name: `Video ${videoCount + 1}`,
               kind: "video",
             } as Edit,
           ]),
@@ -203,8 +203,8 @@ export const useEditor = defineStore("editor", () => {
     if (index < 1) {
       error.value =
         index === 0
-          ? "У первого клипа нет предыдущего — переход ставится на второй и следующие клипы"
-          : "Переходы ставятся между клипами главной видеодорожки";
+          ? "The first clip has nothing before it: put transitions on the second clip onwards"
+          : "Transitions join clips on the main video track";
       return;
     }
     selected.value = clipId;
@@ -215,11 +215,6 @@ export const useEditor = defineStore("editor", () => {
       // Trim the clip edges just enough for the handles instead of failing.
       make_room: true,
     });
-    const handles = /needs (\d+) ms of media after .* and (\d+) ms before/.exec(
-      error.value,
-    );
-    if (handles)
-      error.value = `Для перехода ${durationMs / 1000} с нужно ${Number(handles[1]) / 1000} с исходника после конца предыдущего клипа и ${Number(handles[2]) / 1000} с до начала этого. Обрежьте клипы (тяните края) или сократите переход.`;
   }
   async function setSpeed(
     clipId: string,
@@ -242,7 +237,7 @@ export const useEditor = defineStore("editor", () => {
         playhead.value <= c.position_ms + clipLength(c),
     );
     if (!clip) {
-      error.value = "Поставьте плейхед на клип главной видеодорожки";
+      error.value = "Put the playhead over a clip on the main video track";
       return;
     }
     playing.value = false;
@@ -264,7 +259,7 @@ export const useEditor = defineStore("editor", () => {
   ) {
     const path = await open({
       multiple: false,
-      filters: [{ name: "Субтитры SRT", extensions: ["srt"] }],
+      filters: [{ name: "SRT subtitles", extensions: ["srt"] }],
     });
     if (typeof path !== "string") return;
     playing.value = false;
@@ -282,7 +277,7 @@ export const useEditor = defineStore("editor", () => {
     await edit({
       operation: "add_track",
       track_id: crypto.randomUUID(),
-      name: `Видео ${(project.value?.tracks.filter((t) => t.kind === "video").length ?? 0) + 1}`,
+      name: `Video ${(project.value?.tracks.filter((t) => t.kind === "video").length ?? 0) + 1}`,
       kind: "video",
     });
   }
@@ -352,7 +347,7 @@ export const useEditor = defineStore("editor", () => {
     const clip = track?.clips.find((c) => c.id === clipId);
     if (!track || !clip) return;
     if (track.kind === "audio" && recipe.steps.some(isVideoStep)) {
-      error.value = `«${recipe.name}» — видеоэффект, его нельзя применить к звуковой дорожке`;
+      error.value = `“${recipe.name}” is a video effect and cannot go on an audio track`;
       return;
     }
     selected.value = clipId;

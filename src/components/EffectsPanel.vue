@@ -26,7 +26,7 @@ function dragRecipe(event: DragEvent, recipe: EffectRecipe) {
 // Single source of truth: `blyacut_core::effects::builtin_recipes` (Rust).
 const builtinRecipes = ref<EffectRecipe[]>([]);
 
-// Загрузка пресетов из Rust Tauri (когда команда готова)
+// Built-in presets come from Rust (`builtin_effect_recipes`).
 onMounted(async () => {
   if (!isTauri()) return;
   try {
@@ -35,15 +35,15 @@ onMounted(async () => {
       builtinRecipes.value = list;
     }
   } catch (error) {
-    e.error = `Не удалось загрузить встроенные эффекты: ${error}`;
+    e.error = `Could not load built-in effects: ${error}`;
   }
 });
 
-// --- ВКЛАДКИ ГАЛЕРЕИ ПРЕСЕТОВ ---
+// --- Preset gallery tabs ---
 const activeTab = ref<"video" | "audio">("video");
 const searchQuery = ref("");
 
-// Если выделен клип на аудиодорожке, автоматически переключаем на аудио-эффекты
+// An audio-track selection switches the gallery to audio effects
 watch(
   () => e.selectionTrack?.kind,
   (kind) => {
@@ -71,7 +71,7 @@ const filteredRecipes = computed(() => {
   });
 });
 
-// --- СТАТУС ВЫДЕЛЕНИЯ И ЛИМИТЫ ---
+// --- Selection and limits ---
 const currentClip = computed(() => e.selection);
 const isAudioTrack = computed(() => e.selectionTrack?.kind === "audio");
 const currentEffects = computed(() => currentClip.value?.effects ?? []);
@@ -85,18 +85,18 @@ const canAddMoreRecipes = computed(() => {
 });
 
 function getRecipeIncompatibilityReason(recipe: EffectRecipe): string | null {
-  if (!currentClip.value) return "Выберите клип на таймлайне";
+  if (!currentClip.value) return "Select a clip on the timeline";
   if (currentEffects.value.length >= 8)
-    return "Достигнут лимит: максимум 8 рецептов на клип";
+    return "Limit reached: at most 8 effects per clip";
   if (totalSteps.value + recipe.steps.length > 32)
-    return "Достигнут лимит: максимум 32 шага на клип";
+    return "Limit reached: at most 32 steps per clip";
   if (isAudioTrack.value && !isAudioCompatibleRecipe(recipe)) {
-    return "Видеоэффекты нельзя применять к аудиодорожке";
+    return "Video effects cannot go on an audio track";
   }
   return null;
 }
 
-// --- УПРАВЛЕНИЕ ЦЕПОЧКОЙ ЭФФЕКТОВ КЛИПА ---
+// --- The clip's effect chain ---
 function applyRecipe(recipe: EffectRecipe) {
   const c = currentClip.value;
   if (!c || getRecipeIncompatibilityReason(recipe)) return;
@@ -131,12 +131,12 @@ function moveRecipe(index: number, direction: -1 | 1) {
   });
 }
 
-// --- СОЗДАНИЕ СВОЕГО ЭФФЕКТА (ОДИНОЧНЫЙ ШАГ СО СЛАЙДЕРАМИ) ---
+// --- Custom single-step effect with sliders ---
 const customStepEffect = ref<EffectStep["effect"]>("contrast");
 const customParamValues = ref<Record<string, number>>({});
 const customRecipeName = ref("");
 
-// Обновление параметров по умолчанию при смене типа шага
+// Reset parameters to defaults when the step type changes
 function onCustomStepChange() {
   const meta = getEffectMeta(customStepEffect.value);
   if (!meta) return;
@@ -177,7 +177,7 @@ function addCustomEffect() {
   applyRecipe(recipe);
 }
 
-// --- ЗАГРУЗКА ПАПКИ С ДИСКА (LOAD RECIPE FOLDER) ---
+// --- Recipe folder on disk ---
 const folder = ref("");
 const folderCatalog = ref<EffectCatalog>({ recipes: [], warnings: [] });
 
@@ -185,7 +185,7 @@ async function chooseFolder() {
   const path = await open({
     directory: true,
     multiple: false,
-    title: "Выберите папку с JSON-рецептами эффектов",
+    title: "Choose a folder of JSON effect recipes",
   });
   if (typeof path === "string") {
     folder.value = path;
@@ -205,15 +205,15 @@ async function reloadFolder() {
 
 <template>
   <section class="effects-panel">
-    <!-- Заголовок панели -->
+    <!-- Header -->
     <div v-if="props.section === 'chain'" class="panel-header-row">
       <div class="header-left">
         <h4 class="title">
-          Эффекты
+          Effects
           <span class="badge">{{ currentEffects.length }}</span>
         </h4>
         <span v-if="currentClip" class="clip-sub">
-          Клип на {{ isAudioTrack ? "аудиодорожке" : "видеодорожке" }}
+          {{ isAudioTrack ? "Audio" : "Video" }} track clip
         </span>
       </div>
       <div
@@ -221,25 +221,22 @@ async function reloadFolder() {
         class="steps-count"
         :class="{ warn: totalSteps >= 28 }"
       >
-        {{ currentEffects.length }}/8 рец. · {{ totalSteps }}/32 шагов
+        {{ currentEffects.length }}/8 effects · {{ totalSteps }}/32 steps
       </div>
     </div>
 
-    <!-- 1. ЦЕПОЧКА ЭФФЕКТОВ ТЕКУЩЕГО КЛИПА -->
+    <!-- 1. The clip's effect chain -->
     <div v-if="props.section === 'chain'" class="section-block">
-      <div class="section-title">Цепочка на клипе</div>
+      <div class="section-title">Effect chain</div>
 
       <div v-if="!currentClip" class="empty-hint">
-        <span
-          >👆 Выберите клип на таймлайне, чтобы применить или настроить
-          эффекты.</span
-        >
+        <span>👆 Select a clip on the timeline to add or adjust effects.</span>
       </div>
 
       <div v-else-if="!currentEffects.length" class="empty-hint">
         <span
-          >На этом клипе пока нет эффектов. Выберите пресет ниже или создайте
-          свой.</span
+          >No effects on this clip yet. Drag one from the library or build your
+          own.</span
         >
       </div>
 
@@ -256,7 +253,7 @@ async function reloadFolder() {
           <div class="chain-controls">
             <button
               class="icon-btn"
-              title="Переместить выше"
+              title="Move up"
               :disabled="index === 0"
               @click="moveRecipe(index, -1)"
             >
@@ -264,7 +261,7 @@ async function reloadFolder() {
             </button>
             <button
               class="icon-btn"
-              title="Переместить ниже"
+              title="Move down"
               :disabled="index === currentEffects.length - 1"
               @click="moveRecipe(index, 1)"
             >
@@ -272,7 +269,7 @@ async function reloadFolder() {
             </button>
             <button
               class="icon-btn danger"
-              title="Удалить эффект"
+              title="Remove effect"
               @click="removeRecipe(index)"
             >
               ×
@@ -282,37 +279,37 @@ async function reloadFolder() {
       </div>
     </div>
 
-    <!-- 2. ГАЛЕРЕЯ ВСТРОЕННЫХ ПРЕСЕТОВ -->
+    <!-- 2. Built-in preset gallery -->
     <div v-if="props.section === 'library'" class="section-block">
       <div class="section-title-row">
-        <div class="section-title">Галерея пресетов</div>
+        <div class="section-title">Presets</div>
         <div class="tabs-group">
           <button
             class="tab-btn"
             :class="{ active: activeTab === 'video' }"
             :disabled="isAudioTrack"
-            title="Видео-эффекты"
+            title="Video effects"
             @click="activeTab = 'video'"
           >
-            Видео
+            Video
           </button>
           <button
             class="tab-btn"
             :class="{ active: activeTab === 'audio' }"
-            title="Аудио-эффекты"
+            title="Audio effects"
             @click="activeTab = 'audio'"
           >
-            Звук
+            Audio
           </button>
         </div>
       </div>
 
-      <!-- Поиск по названию -->
+      <!-- Search -->
       <div class="search-box">
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Поиск пресетов (название, шаг)..."
+          placeholder="Search presets (name, step)…"
           class="search-input"
         />
         <button
@@ -324,7 +321,7 @@ async function reloadFolder() {
         </button>
       </div>
 
-      <!-- Сетка карточек пресетов (2 колонки) -->
+      <!-- Preset cards (2 columns) -->
       <div class="presets-grid">
         <div
           v-for="recipe in filteredRecipes"
@@ -336,8 +333,8 @@ async function reloadFolder() {
           :title="
             currentClip
               ? (getRecipeIncompatibilityReason(recipe) ??
-                'Нажмите или перетащите на клип')
-              : 'Перетащите на клип на таймлайне'
+                'Click or drag onto a clip')
+              : 'Drag onto a clip on the timeline'
           "
           tabindex="0"
           draggable="true"
@@ -356,22 +353,22 @@ async function reloadFolder() {
       </div>
 
       <p v-if="filteredRecipes.length === 0" class="muted-centered">
-        Ничего не найдено по запросу «{{ searchQuery }}».
+        Nothing matches “{{ searchQuery }}”.
       </p>
     </div>
 
-    <!-- 3. СВОЙ ЭФФЕКТ (КОНСТРУКТОР ОДИНОЧНОГО ШАГА) -->
+    <!-- 3. Custom effect builder -->
     <details
       v-if="props.section === 'library'"
       class="section-block custom-effect-details"
     >
       <summary class="section-title summary-toggle">
-        <span>Создать свой эффект</span>
+        <span>Build your own effect</span>
       </summary>
 
       <div class="custom-builder-body">
         <div class="field-row">
-          <label class="field-label">Тип шага</label>
+          <label class="field-label">Step</label>
           <select
             v-model="customStepEffect"
             class="select-input"
@@ -384,7 +381,7 @@ async function reloadFolder() {
               :disabled="isAudioTrack && meta.kind === 'video'"
             >
               {{ meta.icon }} {{ meta.name }} ({{
-                meta.kind === "video" ? "Видео" : "Аудио"
+                meta.kind === "video" ? "Video" : "Audio"
               }})
             </option>
           </select>
@@ -394,7 +391,7 @@ async function reloadFolder() {
           {{ selectedStepMeta.description }}
         </div>
 
-        <!-- Слайдеры параметров выбранного шага -->
+        <!-- Parameter sliders -->
         <div v-if="selectedStepMeta?.params.length" class="params-list">
           <div
             v-for="p in selectedStepMeta.params"
@@ -423,11 +420,11 @@ async function reloadFolder() {
         </div>
 
         <div class="field-row">
-          <label class="field-label">Название эффекта</label>
+          <label class="field-label">Effect name</label>
           <input
             v-model="customRecipeName"
             type="text"
-            placeholder="Название пресета"
+            placeholder="Preset name"
             class="text-input"
           />
         </div>
@@ -440,29 +437,29 @@ async function reloadFolder() {
           "
           @click="addCustomEffect"
         >
-          ＋ Добавить эффект к клипу
+          ＋ Add effect to clip
         </button>
       </div>
     </details>
 
-    <!-- 4. ЗАГРУЗКА ПАПКИ С ДИСКА (LOAD RECIPE FOLDER) -->
+    <!-- 4. Recipe folder on disk -->
     <details
       v-if="props.section === 'library'"
       class="section-block folder-details"
     >
       <summary class="section-title summary-toggle">
-        <span>Пользовательская папка с JSON-рецептами</span>
+        <span>Your JSON recipe folder</span>
       </summary>
 
       <div class="folder-body">
         <button class="full" @click="chooseFolder">
-          {{ folder ? "Сменить папку рецептов…" : "Load recipe folder…" }}
+          {{ folder ? "Change recipe folder…" : "Load recipe folder…" }}
         </button>
 
         <template v-if="folder">
           <div class="folder-path-label">{{ folder }}</div>
           <button class="full secondary" @click="reloadFolder">
-            Обновить рецепты из папки
+            Reload recipes from folder
           </button>
 
           <div v-if="folderCatalog.recipes.length" class="folder-recipes-list">
@@ -490,10 +487,10 @@ async function reloadFolder() {
       </div>
     </details>
 
-    <!-- Честная подпись о возможностях превью и экспорта -->
+    <!-- Honest note on preview vs export -->
     <div class="footer-disclaimer">
-      💡 Экспорт применяет все эффекты. Превью — приблизительное (только
-      цвет/размытие/ч-б/сепия/негатив/зеркало).
+      💡 Export applies every effect. The monitor preview is approximate (color,
+      blur, black & white, sepia, negative, mirror only).
     </div>
   </section>
 </template>
@@ -621,7 +618,7 @@ async function reloadFolder() {
   line-height: 1.4;
 }
 
-/* Список цепочки на клипе */
+/* Effect chain */
 .chain-list {
   display: flex;
   flex-direction: column;
@@ -693,7 +690,7 @@ async function reloadFolder() {
   cursor: default;
 }
 
-/* Поиск */
+/* Search */
 .search-box {
   position: relative;
   margin-bottom: 8px;
@@ -727,7 +724,7 @@ async function reloadFolder() {
   padding: 0;
 }
 
-/* Сетка пресетов 2 колонки */
+/* Preset grid */
 .presets-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -798,7 +795,7 @@ async function reloadFolder() {
   padding: 16px 0;
 }
 
-/* Конструктор эффекта */
+/* Effect builder */
 .custom-effect-details summary {
   margin-bottom: 0;
 }
@@ -886,7 +883,7 @@ async function reloadFolder() {
   cursor: pointer;
 }
 
-/* Папка с диска */
+/* Recipe folder */
 .folder-details summary {
   margin-bottom: 0;
 }

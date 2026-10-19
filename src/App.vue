@@ -28,10 +28,10 @@ const cleanup: UnlistenFn[] = [];
 let autosaveTimer: ReturnType<typeof setInterval> | undefined;
 const autosavePath = ref("");
 const dockTabs = [
-  ["clip", "Клип"],
-  ["audio", "Звук"],
-  ["effects", "Эффекты"],
-  ["agent", "Агент"],
+  ["clip", "Clip"],
+  ["audio", "Audio"],
+  ["effects", "Effects"],
+  ["agent", "Agent"],
 ] as const;
 type Dock = (typeof dockTabs)[number][0];
 const dock = ref<Dock>("clip");
@@ -58,7 +58,7 @@ const overlaySelected = computed(
 const formats = [
   {
     key: "1920x1080@30",
-    label: "Горизонтальное 1080p · 30 к/с",
+    label: "Landscape 1080p · 30 fps",
     w: 1920,
     h: 1080,
     fps: 30,
@@ -66,7 +66,7 @@ const formats = [
   },
   {
     key: "1920x1080@60",
-    label: "Горизонтальное 1080p · 60 к/с",
+    label: "Landscape 1080p · 60 fps",
     w: 1920,
     h: 1080,
     fps: 60,
@@ -74,7 +74,7 @@ const formats = [
   },
   {
     key: "1280x720@30",
-    label: "Горизонтальное 720p · 30 к/с",
+    label: "Landscape 720p · 30 fps",
     w: 1280,
     h: 720,
     fps: 30,
@@ -82,7 +82,7 @@ const formats = [
   },
   {
     key: "3840x2160@30",
-    label: "4K UHD · 30 к/с",
+    label: "4K UHD · 30 fps",
     w: 3840,
     h: 2160,
     fps: 30,
@@ -90,7 +90,7 @@ const formats = [
   },
   {
     key: "1080x1920@30+fill",
-    label: "Вертикальное 9:16 (Shorts, TikTok, Reels)",
+    label: "Vertical 9:16 (Shorts, TikTok, Reels)",
     w: 1080,
     h: 1920,
     fps: 30,
@@ -98,7 +98,7 @@ const formats = [
   },
   {
     key: "1080x1080@30+fill",
-    label: "Квадрат 1:1",
+    label: "Square 1:1",
     w: 1080,
     h: 1080,
     fps: 30,
@@ -129,7 +129,7 @@ const assetName = computed(
 function trim(startMs: number, endMs: number) {
   if (!e.selection) return;
   if (endMs <= startMs) {
-    e.error = "Конец клипа должен быть позже начала";
+    e.error = "The clip end must come after its start";
     return;
   }
   void e.edit({
@@ -163,7 +163,7 @@ function key(ev: KeyboardEvent) {
     e.step(ev.key === "ArrowLeft" ? -1 : 1);
   }
 }
-// The name is the joke: «Бля!» greets you on launch (switch it off in the status bar).
+// The name is the joke: «Бля!» ("Blya!") greets you on launch (switch it off in the status bar).
 const greeting = ref(readGreeting());
 function readGreeting() {
   try {
@@ -197,7 +197,7 @@ onMounted(async () => {
   if (greeting.value) void sayBlya();
   if (!isTauri()) {
     e.error =
-      "Запустите npm run tauri dev: в браузере нет доступа к файлам и движку монтажа.";
+      "Run npm run tauri dev: the browser has no file access or editing engine.";
     return;
   }
   cleanup.push(
@@ -210,7 +210,7 @@ onMounted(async () => {
     if (e.dirty && !e.busy)
       void invoke<string>("autosave")
         .then((path) => (autosavePath.value = path))
-        .catch((err) => (e.error = `Автосохранение не удалось: ${err}`));
+        .catch((err) => (e.error = `Autosave failed: ${err}`));
   }, 30000);
   cleanup.push(
     await listen<{ progress: number; status: string; error: string | null }>(
@@ -219,7 +219,8 @@ onMounted(async () => {
         progress.value = p.progress;
         exporting.value = p.status === "rendering";
         exportStatus.value =
-          p.error ?? (p.status === "complete" ? "Экспорт готов" : "Экспорт…");
+          p.error ??
+          (p.status === "complete" ? "Export complete" : "Exporting…");
         if (p.error) e.error = p.error;
       },
     ),
@@ -239,12 +240,12 @@ async function render() {
   await e.guard(async () => {
     const path = await save({
       defaultPath: "BlyaCut-export.mp4",
-      filters: [{ name: "Видео MP4", extensions: ["mp4"] }],
+      filters: [{ name: "MP4 video", extensions: ["mp4"] }],
     });
     if (!path) return;
     progress.value = 0;
     exporting.value = true;
-    exportStatus.value = "Экспорт…";
+    exportStatus.value = "Exporting…";
     try {
       await invoke("export_video", { path });
       exportDialog.value = false;
@@ -258,10 +259,7 @@ async function render() {
 <template>
   <div class="editor-shell">
     <header class="app-header">
-      <div
-        class="brand"
-        title="BlyaCut — монтаж, от которого хочется сказать «бля!»"
-      >
+      <div class="brand" title="BlyaCut: editing so good you say “blya!”">
         <img
           class="brand-mark"
           :src="logo"
@@ -270,28 +268,14 @@ async function render() {
           height="26"
         /><span class="wordmark">Blya<b>Cut</b></span>
       </div>
-      <div class="project-name" :title="e.projectPath || 'Проект не сохранён'">
-        {{ e.project?.name ?? "Новый проект"
-        }}<span
-          v-if="e.dirty"
-          class="dirty"
-          title="Есть несохранённые изменения"
-        >
-          ●</span
-        >
+      <div class="project-name" :title="e.projectPath || 'Project not saved'">
+        {{ e.project?.name ?? "Untitled project"
+        }}<span v-if="e.dirty" class="dirty" title="Unsaved changes"> ●</span>
       </div>
-      <div class="history" role="group" aria-label="История">
-        <button
-          title="Отменить (⌘Z)"
-          aria-label="Отменить"
-          @click="e.history()"
-        >
+      <div class="history" role="group" aria-label="History">
+        <button title="Undo (⌘Z)" aria-label="Undo" @click="e.history()">
           ↶</button
-        ><button
-          title="Повторить (⇧⌘Z)"
-          aria-label="Повторить"
-          @click="e.history(true)"
-        >
+        ><button title="Redo (⇧⌘Z)" aria-label="Redo" @click="e.history(true)">
           ↷
         </button>
       </div>
@@ -302,11 +286,11 @@ async function render() {
           <span class="chip-bar"
             ><i :style="{ width: progress * 100 + '%' }"
           /></span>
-          <button @click="invoke('cancel_export')">Отмена</button></template
+          <button @click="invoke('cancel_export')">Cancel</button></template
         ><button
           v-else
           class="ghost"
-          aria-label="Скрыть"
+          aria-label="Dismiss"
           @click="exportStatus = ''"
         >
           ×
@@ -314,24 +298,24 @@ async function render() {
       </div>
       <nav>
         <button :disabled="e.busy" title="⌘O" @click="e.openProject()">
-          Открыть</button
+          Open</button
         ><button
           :disabled="!e.project || e.busy"
           title="⌘S"
           @click="e.saveProject()"
         >
-          Сохранить</button
+          Save</button
         ><button
           class="primary"
           :disabled="!e.duration || exporting"
           @click="exportDialog = true"
         >
-          ↑ Экспорт
+          ↑ Export
         </button>
       </nav>
     </header>
     <div v-if="e.error" class="error-banner" role="alert">
-      {{ e.error }}<button aria-label="Закрыть" @click="e.error = ''">×</button>
+      {{ e.error }}<button aria-label="Close" @click="e.error = ''">×</button>
     </div>
     <div class="workspace">
       <LibraryPanel />
@@ -340,7 +324,7 @@ async function render() {
         <div
           class="dock-tabs"
           role="tablist"
-          aria-label="Свойства"
+          aria-label="Properties"
           @keydown="dockKey"
         >
           <button
@@ -369,8 +353,10 @@ async function render() {
           v-if="dock !== 'agent' && !e.selection"
           class="dock-content inspector-empty"
         >
-          <p>Выберите клип на таймлайне.</p>
-          <small>Эффекты можно перетащить из библиотеки прямо на клип.</small>
+          <p>Select a clip on the timeline.</p>
+          <small
+            >You can drag effects from the library straight onto a clip.</small
+          >
         </div>
         <div
           v-else-if="dock === 'clip' && e.selection"
@@ -383,42 +369,42 @@ async function render() {
           <p class="clip-kind">
             {{
               e.selectionTrack?.kind === "audio"
-                ? "Звуковая дорожка · без сдвига соседей"
+                ? "Audio track · neighbours stay put"
                 : overlaySelected
-                  ? "Наложение · поверх главного видео, без звука"
-                  : "Главная видеодорожка · соседи сдвигаются"
+                  ? "Overlay · above the main video, silent"
+                  : "Main video track · neighbours ripple"
             }}
           </p>
           <div class="paired-fields">
             <TimecodeField
-              label="Начало в исходнике"
+              label="Source in"
               :value="e.selection.source_start_ms"
               @commit="trim($event, e.selection.source_end_ms)"
             />
             <TimecodeField
-              label="Конец в исходнике"
+              label="Source out"
               :value="e.selection.source_end_ms"
               @commit="trim(e.selection.source_start_ms, $event)"
             />
             <TimecodeField
-              label="На таймлайне"
+              label="On timeline"
               :value="e.selection.position_ms"
               readonly
             />
             <TimecodeField
-              label="Длительность"
+              label="Duration"
               :value="clipLength(e.selection)"
               readonly
             />
           </div>
-          <p class="muted">Enter — применить · ↑/↓ — ±0,1 с (⇧ ±1 с)</p>
+          <p class="muted">Enter applies · ↑/↓ ±0.1 s (⇧ ±1 s)</p>
           <TransformControls v-if="overlaySelected" />
           <TransitionControl v-else />
           <SpeedControl />
           <div class="clip-actions">
-            <button title="S" @click="e.split()">✂ Разрезать</button
+            <button title="S" @click="e.split()">✂ Split</button
             ><button class="danger" title="⌫" @click="e.remove()">
-              Удалить
+              Delete
             </button>
           </div>
         </div>
@@ -453,30 +439,30 @@ async function render() {
     </div>
     <Timeline />
     <footer class="status-bar">
-      <label class="greet-toggle" title="Сказать «Бля!» при запуске"
-        ><input v-model="greeting" type="checkbox" /> «Бля!» при запуске</label
-      ><span><i /> Локально</span
+      <label class="greet-toggle" title="Say “Blya!” on launch"
+        ><input v-model="greeting" type="checkbox" /> “Blya!” on launch</label
+      ><span><i /> Local</span
       ><span :title="autosavePath">{{
         autosavePath
-          ? "Резервная копия сохранена"
-          : "Rust · без изменения исходников"
+          ? "Recovery snapshot saved"
+          : "Rust core · originals untouched"
       }}</span
-      ><span>{{ e.projectPath || "Проект не сохранён" }}</span>
+      ><span>{{ e.projectPath || "Project not saved" }}</span>
     </footer>
     <div
       v-if="exportDialog"
       class="modal-backdrop"
       @click.self="exportDialog = false"
     >
-      <section class="export-dialog" role="dialog" aria-label="Экспорт">
-        <span class="eyebrow">ЭКСПОРТ</span>
-        <h2>Сохранить видео</h2>
+      <section class="export-dialog" role="dialog" aria-label="Export">
+        <span class="eyebrow">EXPORT</span>
+        <h2>Save your video</h2>
         <p>H.264 · AAC · MP4</p>
         <label class="format"
-          >Формат
+          >Format
           <select
             :value="formatKey"
-            aria-label="Формат проекта"
+            aria-label="Project format"
             @change="applyFormat(($event.target as HTMLSelectElement).value)"
           >
             <option v-for="f in formats" :key="f.key" :value="f.key">
@@ -486,28 +472,28 @@ async function render() {
               v-if="!formats.some((f) => f.key === formatKey)"
               :value="formatKey"
             >
-              Свой: {{ formatKey }}
+              Custom: {{ formatKey }}
             </option>
           </select>
         </label>
         <div class="export-spec">
           <span
-            >Размер<strong
+            >Size<strong
               >{{ e.project?.settings.width }} ×
               {{ e.project?.settings.height }}</strong
             ></span
           ><span
-            >Длина<strong>{{ time(e.duration) }}</strong></span
-          ><span>Кодирование<strong>CPU · CRF 20</strong></span>
+            >Length<strong>{{ time(e.duration) }}</strong></span
+          ><span>Encoding<strong>CPU · CRF 20</strong></span>
         </div>
         <p class="muted">
-          Экспорт идёт со снимка таймлайна — монтаж можно продолжать. Нужен
-          новый файл: существующие не перезаписываются.
+          Export uses a snapshot, so you can keep editing. Choose a new file
+          name: existing files are never overwritten.
         </p>
         <div class="dialog-actions">
-          <button @click="exportDialog = false">Отмена</button
+          <button @click="exportDialog = false">Cancel</button
           ><button class="primary" @click="render()">
-            Выбрать файл и экспортировать
+            Choose file and export
           </button>
         </div>
       </section>

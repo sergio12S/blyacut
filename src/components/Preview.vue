@@ -214,13 +214,13 @@ onUnmounted(() => {
   <section class="preview">
     <div class="panel-title">
       <span
-        >МОНИТОР<button
+        >MONITOR<button
           class="safe-toggle"
           :aria-pressed="safeZones"
-          title="Показать, что закроет интерфейс соцсетей (вертикаль) или рамку безопасных титров"
+          title="Show what social app UI covers (vertical) or the title-safe frame"
           @click="safeZones = !safeZones"
         >
-          Безопасная зона
+          Safe zone
         </button></span
       ><span
         >{{ e.project?.settings.width }} × {{ e.project?.settings.height }} ·
@@ -236,8 +236,7 @@ onUnmounted(() => {
       preload="metadata"
       @loadedmetadata="sync(true)"
       @error="
-        previewError =
-          'Этот звук WebView не может воспроизвести. Попробуйте WAV или AAC.'
+        previewError = 'The WebView cannot play this audio. Try WAV or AAC.'
       "
     />
     <div ref="screen" class="screen">
@@ -266,7 +265,7 @@ onUnmounted(() => {
           @loadedmetadata="sync(true)"
           @error="
             previewError =
-              'Это видео WebView не может воспроизвести. Попробуйте H.264 MP4 (экспорт всё равно сработает).'
+              'The WebView cannot play this video. Try H.264 MP4 (export still works).'
           "
         />
         <div
@@ -276,8 +275,7 @@ onUnmounted(() => {
           aria-hidden="true"
         >
           <template v-if="vertical">
-            <i class="top" /><i class="bottom"
-              ><span>интерфейс соцсетей</span></i
+            <i class="top" /><i class="bottom"><span>app UI</span></i
             ><i class="right" />
           </template>
           <i v-else class="title-safe" />
@@ -306,20 +304,20 @@ onUnmounted(() => {
       <div
         v-if="source && hasNonCssEffects"
         class="approx-badge"
-        title="У клипа есть эффекты, которые применяются при экспорте через FFmpeg"
+        title="This clip has effects that only the FFmpeg export shows"
       >
-        превью ≈
+        preview ≈
       </div>
       <div v-else-if="!source && !clip && !overlays.length" class="empty">
         <div class="empty-symbol">▷</div>
         <strong>{{
-          e.audioClips.length ? "Только звук" : "Здесь будет ваше видео"
+          e.audioClips.length ? "Audio only" : "Your video will appear here"
         }}</strong>
         <p>
           {{
             e.audioClips.length
-              ? "Воспроизведение включает звуковые дорожки."
-              : "Импортируйте медиа или создайте титр в библиотеке слева."
+              ? "Playback includes the audio tracks."
+              : "Import media or create a title in the library on the left."
           }}
         </p>
       </div>
@@ -328,14 +326,14 @@ onUnmounted(() => {
     <div class="transport">
       <span class="mono">{{ time(e.playhead) }}</span>
       <div>
-        <button title="Кадр назад (←)" @click="e.step(-1)">❮</button
+        <button title="Previous frame (←)" @click="e.step(-1)">❮</button
         ><button
           class="play"
           :disabled="!e.duration"
           @click="e.playing = !e.playing"
         >
           {{ e.playing ? "Ⅱ" : "▶" }}</button
-        ><button title="Кадр вперёд (→)" @click="e.step(1)">❯</button>
+        ><button title="Next frame (→)" @click="e.step(1)">❯</button>
       </div>
       <span class="mono muted">{{ time(e.duration) }}</span>
     </div>

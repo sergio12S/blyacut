@@ -111,15 +111,15 @@ function commit(transform: Transform | null) {
   ]);
 }
 const presets: [string, Transform | null][] = [
-  ["Во весь кадр", null],
+  ["Full frame", null],
   [
-    "Картинка в картинке ↘",
+    "Picture-in-picture ↘",
     { x_milli: 800, y_milli: 780, scale_milli: 300, opacity_milli: 1000 },
   ],
   ["↗", { x_milli: 800, y_milli: 220, scale_milli: 300, opacity_milli: 1000 }],
   ["↖", { x_milli: 200, y_milli: 220, scale_milli: 300, opacity_milli: 1000 }],
   [
-    "Центр 50 %",
+    "Centre 50%",
     { x_milli: 500, y_milli: 500, scale_milli: 500, opacity_milli: 1000 },
   ],
 ];
@@ -130,15 +130,15 @@ const sliders: [
   number,
   (v: number) => string,
 ][] = [
-  ["x_milli", "Положение X", -300, 1300, (v) => `${v / 10} %`],
-  ["y_milli", "Положение Y", -300, 1300, (v) => `${v / 10} %`],
-  ["scale_milli", "Масштаб", 10, 2000, (v) => `${v / 10} %`],
-  ["opacity_milli", "Непрозрачность", 0, 1000, (v) => `${v / 10} %`],
+  ["x_milli", "Position X", -300, 1300, (v) => `${v / 10} %`],
+  ["y_milli", "Position Y", -300, 1300, (v) => `${v / 10} %`],
+  ["scale_milli", "Scale", 10, 2000, (v) => `${v / 10} %`],
+  ["opacity_milli", "Opacity", 0, 1000, (v) => `${v / 10} %`],
 ];
 </script>
 <template>
-  <section class="transform" aria-label="Положение наложения">
-    <h4>Наложение</h4>
+  <section class="transform" aria-label="Overlay placement">
+    <h4>Overlay</h4>
     <div class="presets">
       <button
         v-for="[name, value] in presets"
@@ -149,34 +149,34 @@ const sliders: [
         {{ name }}
       </button>
     </div>
-    <h4>Анимация</h4>
+    <h4>Animation</h4>
     <div class="presets">
-      <button title="Въезжает слева за 0,6 с" @click="animate('left')">
-        ⇢ Выезд слева
-      </button>
-      <button title="Въезжает снизу за 0,6 с" @click="animate('bottom')">
-        ⇡ Выезд снизу
-      </button>
-      <button title="Проявляется из прозрачного" @click="animate('fade')">
-        ◐ Проявление
+      <button title="Slides in from the left in 0.6 s" @click="animate('left')">
+        ⇢ Slide in left
       </button>
       <button
-        title="Медленно увеличивается до конца клипа"
-        @click="animate('zoom')"
+        title="Slides up from the bottom in 0.6 s"
+        @click="animate('bottom')"
       >
-        ⊕ Наезд
+        ⇡ Slide in up
+      </button>
+      <button title="Fades in from transparent" @click="animate('fade')">
+        ◐ Fade in
+      </button>
+      <button title="Slowly grows until the clip ends" @click="animate('zoom')">
+        ⊕ Zoom
       </button>
       <button
-        title="Ключевой кадр в позиции плейхеда с текущими значениями"
+        title="Keyframe at the playhead with the current values"
         @click="keyHere"
       >
-        ◆ Ключ здесь
+        ◆ Key here
       </button>
       <button v-if="keys.length" class="danger" @click="setKeys([])">
-        Убрать анимацию
+        Remove animation
       </button>
     </div>
-    <div v-if="keys.length" class="keys" aria-label="Ключевые кадры">
+    <div v-if="keys.length" class="keys" aria-label="Keyframes">
       <span
         v-for="k in keys"
         :key="k.at_ms"
@@ -185,13 +185,13 @@ const sliders: [
       >
         <button
           class="ghost"
-          :title="`Перейти к ключу ${time(k.at_ms)}`"
+          :title="`Go to keyframe ${time(k.at_ms)}`"
           @click="e.seek(e.selection!.position_ms + k.at_ms)"
         >
           ◆ {{ time(k.at_ms).slice(3) }}</button
         ><button
           class="ghost"
-          aria-label="Удалить ключ"
+          aria-label="Delete keyframe"
           @click="setKeys(keys.filter((x) => x.at_ms !== k.at_ms))"
         >
           ×

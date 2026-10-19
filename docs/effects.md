@@ -22,7 +22,7 @@ See `examples/effects/` for grayscale/contrast and telephone/echo chains. For ag
 
 ## Built-in presets
 
-36 curated presets ship inside the binary (`blyacut_core::effects::builtin_recipes`, IDs `builtin-*`): Tauri `builtin_effect_recipes`, and the `builtin` field of MCP `list_effect_recipes`. Video looks: Кино, Винтаж, Нуар, VHS, Сон, Киберпанк, Пиксель-арт, Комикс, Тёплый/Холодный свет, Сочные цвета, Набросок, Негатив, Зеркало, Вверх ногами, Психоделика, Появление из чёрного, Уход в чёрное. Audio: Телефон, Радио, Собор, Комната, Бурундук, Демон, Робот, Под водой, Чистый голос, Мощный бас, Lo-fi, Стадион, Хорус, Флэнжер, Фейзер, Тремоло, Автопанорама, Широкое стерео. Each preset is a normal recipe; copy and edit it freely.
+36 curated presets ship inside the binary (`blyacut_core::effects::builtin_recipes`, IDs `builtin-*`): Tauri `builtin_effect_recipes`, and the `builtin` field of MCP `list_effect_recipes`. Video looks: Cinematic, Vintage, Noir, VHS, Dream, Cyberpunk, Pixel art, Comic, Warm/Cold light, Pop colors, Sketch, Negative, Mirror, Upside down, Psychedelic, Fade in from black, Fade out to black. Audio: Telephone, Radio, Cathedral, Small room, Chipmunk, Demon, Robot, Underwater, Clean voice, Bass boost, Lo-fi, Stadium, Chorus, Flanger, Phaser, Tremolo, Auto-pan, Wide stereo. Each preset is a normal recipe; copy and edit it freely.
 
 ## Steps (43)
 

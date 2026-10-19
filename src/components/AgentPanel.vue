@@ -61,7 +61,7 @@ async function enable() {
     const root = await open({
       directory: true,
       multiple: false,
-      title: "Папка, откуда агент берёт медиа и куда экспортирует",
+      title: "Folder the agent may import from and export into",
     });
     if (typeof root === "string")
       connection.value = await invoke("start_agent", {
@@ -89,16 +89,16 @@ async function resolve(accept: boolean) {
 }
 
 // "Address" snippets: MCP runs over stdio, so an agent needs a command, not a URL.
-const bridgePath = computed(() => bridge.value ?? "/путь/к/blyacut-mcp");
+const bridgePath = computed(() => bridge.value ?? "/path/to/blyacut-mcp");
 const quote = (s: string) => (/[\s"']/.test(s) ? JSON.stringify(s) : s);
-const tabs = ["Claude Code", "JSON-конфиг", "Без окна"] as const;
+const tabs = ["Claude Code", "JSON config", "Headless"] as const;
 const tab = ref<(typeof tabs)[number]>("Claude Code");
 const snippet = computed(() => {
   const config = connection.value?.config_path ?? "";
-  const root = connection.value?.allowed_root ?? "/папка/агента";
+  const root = connection.value?.allowed_root ?? "/agent/folder";
   if (tab.value === "Claude Code")
     return `claude mcp add blyacut -- ${quote(bridgePath.value)} ${quote(config)}`;
-  if (tab.value === "JSON-конфиг")
+  if (tab.value === "JSON config")
     return JSON.stringify(
       {
         mcpServers: {
@@ -113,11 +113,11 @@ const snippet = computed(() => {
 const hint = computed(
   () =>
     ({
-      "Claude Code": "Выполните в терминале, затем перезапустите Claude Code.",
-      "JSON-конфиг":
-        "Вставьте в настройки MCP: Claude Desktop, Cursor, Codex, Gemini CLI и другие.",
-      "Без окна":
-        "Агент запускает собственную студию без этого окна — для полностью автономного монтажа.",
+      "Claude Code": "Run it in a terminal, then restart Claude Code.",
+      "JSON config":
+        "Paste into your MCP settings: Claude Desktop, Cursor, Codex, Gemini CLI and others.",
+      Headless:
+        "The agent runs its own studio without this window, for fully autonomous editing.",
     })[tab.value],
 );
 const copied = ref(false);
@@ -137,14 +137,14 @@ async function copy() {
 }
 const status = computed(() => {
   const a = activity.value;
-  if (!a?.calls) return { live: false, text: "Ждём агента…" };
+  if (!a?.calls) return { live: false, text: "Waiting for an agent…" };
   const ago = Math.max(
     0,
     Math.round((now.value - (a.last_call_unix_ms ?? 0)) / 1000),
   );
   return {
     live: ago < 30,
-    text: `Агент на связи · ${a.calls} вызов${a.calls === 1 ? "" : a.calls < 5 ? "а" : "ов"} · ${a.last_tool} ${ago} с назад`,
+    text: `Agent connected · ${a.calls} call${a.calls === 1 ? "" : "s"} · ${a.last_tool} ${ago}s ago`,
   };
 });
 </script>
@@ -153,10 +153,10 @@ const status = computed(() => {
     <header class="hero">
       <img :src="logo" alt="" width="40" height="40" />
       <div>
-        <h3>Монтаж силами ИИ-агента</h3>
+        <h3>Let an AI agent edit</h3>
         <p>
-          Агент подключается по MCP — открытому стандарту Claude, Cursor, Codex
-          и Gemini — и правит этот таймлайн вместе с вами.
+          Agents connect over MCP, the open standard used by Claude, Cursor,
+          Codex and Gemini, and edit this timeline alongside you.
         </p>
       </div>
     </header>
@@ -165,27 +165,27 @@ const status = computed(() => {
       <li :class="{ done: connection }">
         <span class="n">1</span>
         <div>
-          <strong>Папка агента</strong>
+          <strong>Agent folder</strong>
           <p v-if="!connection">
-            Оттуда агент берёт медиа и туда сохраняет экспорт. Других файлов он
-            не видит.
+            The agent imports media from it and exports into it. It sees no
+            other files.
           </p>
           <p v-else class="path" :title="connection.allowed_root">
             {{ connection.allowed_root }}
           </p>
           <label v-if="!connection" class="toggle"
-            ><input v-model="autonomous" type="checkbox" /> Автономно: удалять и
-            делать большие правки без моего подтверждения</label
+            ><input v-model="autonomous" type="checkbox" /> Autonomous: delete
+            and make large edits without asking me</label
           >
           <p v-else-if="connection.mode === 'autonomous'" class="autonomy-on">
-            Автономный режим. Отмена (⌘Z) работает.
+            Autonomous mode. Undo (⌘Z) still works.
           </p>
           <button
             :class="connection ? 'ghost-danger' : 'primary'"
             :disabled="e.busy"
             @click="connection ? disable() : enable()"
           >
-            {{ connection ? "Отключить агента" : "Выбрать папку и включить…" }}
+            {{ connection ? "Disconnect agent" : "Choose folder and connect…" }}
           </button>
         </div>
       </li>
@@ -193,7 +193,7 @@ const status = computed(() => {
       <li :class="{ dim: !connection }">
         <span class="n">2</span>
         <div class="address">
-          <strong>Адрес для агента</strong>
+          <strong>Agent address</strong>
           <div class="tabs" role="tablist">
             <button
               v-for="t in tabs"
@@ -210,14 +210,14 @@ const status = computed(() => {
             <span class="hint">{{ hint }}</span>
             <button
               class="copy"
-              :disabled="!connection && tab !== 'Без окна'"
+              :disabled="!connection && tab !== 'Headless'"
               @click="copy"
             >
-              {{ copied ? "Скопировано ✓" : "Копировать" }}
+              {{ copied ? "Copied ✓" : "Copy" }}
             </button>
           </div>
           <p v-if="!bridge" class="warn">
-            Мост не найден: соберите его командой
+            Bridge not found: build it with
             <code>cargo build -p blyacut-mcp</code>.
           </p>
         </div>
@@ -226,39 +226,39 @@ const status = computed(() => {
       <li :class="{ dim: !connection }">
         <span class="n">3</span>
         <div>
-          <strong>Попросите агента</strong>
+          <strong>Ask your agent</strong>
           <p class="example">
-            «Смонтируй из файлов в папке ролик на 30 секунд с музыкой и
-            субтитрами»
+            “Edit the files in my folder into a 30-second video with music and
+            subtitles.”
           </p>
           <p v-if="connection" class="status" :class="{ live: status.live }">
             <i />{{ status.text }}
           </p>
           <p v-if="activity?.last_error" class="warn">
-            Последняя ошибка агента: {{ activity.last_error }}
+            Last agent error: {{ activity.last_error }}
           </p>
         </div>
       </li>
     </ol>
 
     <details class="explain">
-      <summary>Почему это «адрес», а не ссылка?</summary>
+      <summary>Why an “address” and not a URL?</summary>
       <p>
-        MCP-агент запускает на этом Mac маленькую программу-мост
-        <code>blyacut-mcp</code> и общается с ней через стандартный ввод-вывод.
-        Мост находит это окно по приватному файлу сессии (доступ только у вас),
-        поэтому сеть не открывается и снаружи к монтажу не подключиться. Файл
-        сессии меняется при каждом включении.
+        An MCP agent starts the small <code>blyacut-mcp</code> bridge on this
+        Mac and talks to it over standard input and output. The bridge finds
+        this window through a private session file only you can read, so no
+        network port opens and nobody outside can join. The session file changes
+        every time you connect.
       </p>
     </details>
 
     <div v-if="proposal" class="proposal-card">
-      <strong>Агент предлагает правки</strong>
+      <strong>The agent proposes edits</strong>
       <p>
-        Правок: {{ proposal.edits.length }} · ревизия {{ proposal.revision }}
+        {{ proposal.edits.length }} edits · revision {{ proposal.revision }}
       </p>
       <p>
-        Итоговая длина:
+        Result length:
         {{
           time(
             Math.max(
@@ -276,12 +276,11 @@ const status = computed(() => {
         </li>
       </ol>
       <details>
-        <summary>Технические детали</summary>
+        <summary>Technical details</summary>
         <pre>{{ JSON.stringify(proposal.edits, null, 2) }}</pre>
       </details>
-      <button class="primary full" @click="resolve(true)">
-        Применить правки</button
-      ><button class="full" @click="resolve(false)">Отклонить</button>
+      <button class="primary full" @click="resolve(true)">Apply edits</button
+      ><button class="full" @click="resolve(false)">Reject</button>
     </div>
   </div>
 </template>

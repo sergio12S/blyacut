@@ -12,10 +12,10 @@ import {
 const e = useEditor();
 const tab = ref<"media" | "titles" | "effects" | "transitions">("media");
 const tabs = [
-  ["media", "Медиа"],
-  ["titles", "Титры"],
-  ["effects", "Эффекты"],
-  ["transitions", "Переходы"],
+  ["media", "Media"],
+  ["titles", "Titles"],
+  ["effects", "Effects"],
+  ["transitions", "Transitions"],
 ] as const;
 const transitionMs = ref(800);
 function dragTransition(event: DragEvent, kind: TransitionKind) {
@@ -27,12 +27,12 @@ function dragTransition(event: DragEvent, kind: TransitionKind) {
 }
 // Title styles: text colour on background colour.
 const styles = [
-  ["Классика", "#FFFFFF", "#000000"],
-  ["Неон", "#00FFE0", "#0B0C16"],
-  ["Лайм", "#18230C", "#C1F17B"],
-  ["Закат", "#FFE3B3", "#5A1E3A"],
-  ["Газета", "#111111", "#F2EDE4"],
-  ["Синий", "#FFFFFF", "#1F4FD8"],
+  ["Classic", "#FFFFFF", "#000000"],
+  ["Neon", "#00FFE0", "#0B0C16"],
+  ["Lime", "#18230C", "#C1F17B"],
+  ["Sunset", "#FFE3B3", "#5A1E3A"],
+  ["Paper", "#111111", "#F2EDE4"],
+  ["Blue", "#FFFFFF", "#1F4FD8"],
 ] as const;
 const titleText = ref("BlyaCut");
 const style = ref(0);
@@ -55,7 +55,7 @@ function createTitle() {
 }
 </script>
 <template>
-  <aside class="library" aria-label="Библиотека">
+  <aside class="library" aria-label="Library">
     <div class="lib-tabs" role="tablist">
       <button
         v-for="[id, label] in tabs"
@@ -70,9 +70,9 @@ function createTitle() {
 
     <div v-if="tab === 'media'" class="lib-body">
       <button class="import" :disabled="e.busy" @click="e.importMedia()">
-        ＋ Импорт медиа
+        ＋ Import media
       </button>
-      <p class="hint">или перетащите видео и аудио в окно</p>
+      <p class="hint">or drop video and audio files into the window</p>
       <div class="media-list">
         <div
           v-for="asset in e.project?.assets"
@@ -85,14 +85,14 @@ function createTitle() {
           <div class="meta">
             <strong :title="asset.path">{{ asset.name }}</strong>
             <small>{{
-              asset.width ? `${asset.width}×${asset.height}` : "аудио"
+              asset.width ? `${asset.width}×${asset.height}` : "audio"
             }}</small>
           </div>
           <button
             class="add"
             :disabled="e.busy"
-            title="Добавить в конец таймлайна"
-            :aria-label="`Добавить ${asset.name} на таймлайн`"
+            title="Append to the timeline"
+            :aria-label="`Append ${asset.name} to the timeline`"
             @click="e.append(asset.id)"
           >
             ＋
@@ -101,8 +101,8 @@ function createTitle() {
             v-if="asset.width"
             class="add"
             :disabled="e.busy"
-            title="Поверх видео в позиции плейхеда (картинка в картинке, логотип)"
-            :aria-label="`Наложить ${asset.name} поверх видео`"
+            title="Over the video at the playhead (picture-in-picture, logo)"
+            :aria-label="`Overlay ${asset.name} on the video`"
             @click="e.placeOverlay(asset.id)"
           >
             ⧉
@@ -110,18 +110,18 @@ function createTitle() {
           <span v-else />
         </div>
         <p v-if="!e.project?.assets.length" class="empty">
-          Здесь появятся ваши файлы.<br />Видео · WAV · MP3 · M4A · FLAC
+          Your files will appear here.<br />Video · WAV · MP3 · M4A · FLAC · PNG
         </p>
       </div>
-      <p class="footer">● Исходные файлы не изменяются</p>
+      <p class="footer">● Original files stay untouched</p>
     </div>
 
     <div v-else-if="tab === 'titles'" class="lib-body">
       <label class="field"
-        >Текст (до 4 строк)
+        >Text (up to 4 lines)
         <textarea v-model="titleText" rows="3" maxlength="200" />
       </label>
-      <div class="styles" role="radiogroup" aria-label="Стиль титра">
+      <div class="styles" role="radiogroup" aria-label="Title style">
         <button
           v-for="([name, text, background], i) in styles"
           :key="name"
@@ -131,38 +131,38 @@ function createTitle() {
           :style="{ color: text, background }"
           @click="style = i"
         >
-          Аа
+          Aa
         </button>
       </div>
-      <div class="mode" role="radiogroup" aria-label="Вид титра">
+      <div class="mode" role="radiogroup" aria-label="Title kind">
         <button role="radio" :aria-checked="!overlay" @click="overlay = false">
-          Отдельный кадр
+          Full-screen card
         </button>
         <button role="radio" :aria-checked="overlay" @click="overlay = true">
-          Поверх видео
+          Over video
         </button>
       </div>
       <label v-if="overlay" class="field"
-        >Где
+        >Position
         <select v-model="position">
-          <option value="top">Сверху</option>
-          <option value="center">По центру</option>
-          <option value="bottom">Снизу (субтитр)</option>
+          <option value="top">Top</option>
+          <option value="center">Centre</option>
+          <option value="bottom">Bottom (subtitle)</option>
         </select>
       </label>
       <label v-if="overlay" class="field"
-        >Читаемость
+        >Legibility
         <select v-model="backing">
-          <option value="box">Плашка — читается на любом фоне</option>
-          <option value="outline">Обводка</option>
-          <option value="shadow">Только тень</option>
+          <option value="box">Plate: readable on any footage</option>
+          <option value="outline">Outline</option>
+          <option value="shadow">Shadow only</option>
         </select>
       </label>
       <label class="field"
-        >Длительность
+        >Duration
         <select v-model.number="seconds">
           <option v-for="s in [2, 3, 4, 5, 8]" :key="s" :value="s">
-            {{ s }} с
+            {{ s }} s
           </option>
         </select>
       </label>
@@ -171,34 +171,34 @@ function createTitle() {
         :disabled="e.busy || !titleText.trim()"
         @click="createTitle"
       >
-        {{ overlay ? "Наложить текст" : "Создать титр" }}
+        {{ overlay ? "Add text over video" : "Create title" }}
       </button>
       <button
         :disabled="e.busy"
-        title="Готовые субтитры в формате SRT — например, расшифровка от агента"
+        title="Ready-made SRT subtitles, for example a transcript from your agent"
         @click="e.importSubtitles(position, backing)"
       >
-        Импорт субтитров (SRT)…
+        Import subtitles (SRT)…
       </button>
       <p class="hint">
         {{
           overlay
-            ? "Текст встанет поверх видео в позиции плейхеда."
-            : "Титр встанет в конец видеодорожки. Добавьте ему «Появление из чёрного» во вкладке «Эффекты»."
+            ? "The text goes over the video at the playhead."
+            : "The title goes at the end of the video track. Add “Fade in from black” from Effects."
         }}
       </p>
     </div>
 
     <div v-else-if="tab === 'transitions'" class="lib-body">
       <label class="field"
-        >Длительность
+        >Duration
         <select v-model.number="transitionMs">
           <option
             v-for="ms in [300, 500, 800, 1000, 1500, 2000]"
             :key="ms"
             :value="ms"
           >
-            {{ ms / 1000 }} с
+            {{ ms / 1000 }} s
           </option>
         </select>
       </label>
@@ -207,7 +207,7 @@ function createTitle() {
           v-for="kind in TRANSITION_KINDS"
           :key="kind"
           draggable="true"
-          :title="`${TRANSITION_NAMES[kind]}: нажмите — на выделенный клип, или перетащите на клип`"
+          :title="`${TRANSITION_NAMES[kind]}: click to apply to the selected clip, or drag onto a clip`"
           @dragstart="dragTransition($event, kind)"
           @click="
             e.selection && e.setTransition(e.selection.id, kind, transitionMs)
@@ -218,8 +218,8 @@ function createTitle() {
         </button>
       </div>
       <p class="hint">
-        Переход встаёт перед клипом главной дорожки и использует немного
-        исходника за краями склейки — длина фильма не меняется.
+        A transition goes into a main-track clip and borrows a little media
+        beyond the cut, so the film length never changes.
       </p>
     </div>
 
@@ -243,12 +243,13 @@ function createTitle() {
   flex-shrink: 0;
 }
 .lib-tabs button {
-  flex: 1;
+  /* Width follows the label so "Transitions" fits even the narrow library. */
+  flex: 1 1 auto;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--text-secondary);
-  padding: 10px 2px;
+  padding: 10px 5px;
   font-size: 12px;
   min-width: 0;
   overflow: hidden;

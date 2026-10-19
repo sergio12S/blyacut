@@ -99,13 +99,12 @@ export function planGesture(
     source.kind !== target.kind ||
     target.kind === "text"
   ) {
-    return { ...plan, error: "Отпустите на дорожке того же типа" };
+    return { ...plan, error: "Drop on a track of the same type" };
   }
   if (mode !== "move" && ((clip.speed_milli ?? 1000) !== 1000 || clip.reverse))
     return {
       ...plan,
-      error:
-        "Ускоренный или реверсный клип обрежьте в инспекторе (начало/конец в исходнике)",
+      error: "Trim retimed or reversed clips in the inspector (source in/out)",
     };
   const original = {
     trackId: source.id,
@@ -257,7 +256,7 @@ export function planGesture(
   }
   const length = next.end - next.start;
   if (next.position + length > MAX_TIME)
-    plan.error = "Таймлайн ограничен одной неделей";
+    plan.error = "The timeline is limited to one week";
   if (
     target.clips.some(
       (c) =>
@@ -268,7 +267,7 @@ export function planGesture(
     !(mode !== "move" && ripples)
   ) {
     plan.error =
-      "Клипы не могут пересекаться — возьмите другую дорожку или включите «Магнит» для видео";
+      "Clips cannot overlap here: use another track or turn on Magnetic for video";
   }
   if (
     plan.guide !== undefined &&

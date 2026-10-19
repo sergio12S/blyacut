@@ -34,7 +34,7 @@ Clean-room comparison from **public** Wondershare documentation and independent 
 
 ## Roadmap
 
-**Phase 1 — interface (now).** Library tabs (Media · Titles · Effects) with drag onto clips; tabbed inspector (Clip · Audio · Effects) with timecode fields; one compact header with undo/redo and export progress; no hint row; consistent Russian UI; title cards from the UI.
+**Phase 1 — interface (now).** Library tabs (Media · Titles · Effects) with drag onto clips; tabbed inspector (Clip · Audio · Effects) with timecode fields; one compact header with undo/redo and export progress; no hint row; consistent English UI; title cards from the UI.
 
 **Phase 2 — composition (done: overlay tracks, PiP, stills, legible text over video, 20 transitions, format presets incl. vertical crop-to-fill).** Multiple video tracks with overlay/PiP (position, scale, opacity), text overlay rendered as an image layer, transitions between adjacent clips, export presets. Preview parity first: the monitor must show what export renders.
 

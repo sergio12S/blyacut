@@ -5,8 +5,7 @@ import { useEditor } from "../stores/editor";
 const e = useEditor();
 const speeds = [250, 500, 750, 1000, 1250, 1500, 2000, 3000, 4000];
 const still = computed(
-  () =>
-    !!e.project?.assets.find((a) => a.id === e.selection?.asset_id)?.still,
+  () => !!e.project?.assets.find((a) => a.id === e.selection?.asset_id)?.still,
 );
 const onMain = computed(
   () =>
@@ -19,11 +18,11 @@ function set(speed: number, reverse: boolean) {
 </script>
 <template>
   <section v-if="e.selection && !still" class="speed">
-    <h4>Скорость</h4>
+    <h4>Speed</h4>
     <div class="row">
       <select
         :value="e.selection.speed_milli ?? 1000"
-        aria-label="Скорость клипа"
+        aria-label="Clip speed"
         @change="
           set(
             Number(($event.target as HTMLSelectElement).value),
@@ -32,7 +31,7 @@ function set(speed: number, reverse: boolean) {
         "
       >
         <option v-for="s in speeds" :key="s" :value="s">
-          {{ s / 1000 }}×{{ s === 1000 ? " (обычная)" : "" }}
+          {{ s / 1000 }}×{{ s === 1000 ? " (normal)" : "" }}
         </option>
       </select>
       <label class="check"
@@ -46,15 +45,15 @@ function set(speed: number, reverse: boolean) {
             )
           "
         />
-        Реверс</label
+        Reverse</label
       >
     </div>
     <button
       v-if="onMain"
-      title="Остановить кадр под плейхедом на 2 секунды"
+      title="Hold the frame under the playhead for 2 seconds"
       @click="e.freezeFrame(2000)"
     >
-      ❄ Стоп-кадр 2 с в позиции плейхеда
+      ❄ Freeze frame (2 s) at playhead
     </button>
   </section>
 </template>

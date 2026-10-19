@@ -21,14 +21,14 @@ function set(kind: string, ms = current.value?.duration_ms ?? 800) {
 </script>
 <template>
   <section v-if="index > 0" class="transition-control">
-    <h4>Переход в начале</h4>
+    <h4>Transition in</h4>
     <div class="row">
       <select
         :value="current?.kind ?? ''"
-        aria-label="Вид перехода"
+        aria-label="Transition"
         @change="set(($event.target as HTMLSelectElement).value)"
       >
-        <option value="">Без перехода (склейка)</option>
+        <option value="">None (cut)</option>
         <option v-for="k in TRANSITION_KINDS" :key="k" :value="k">
           {{ TRANSITION_NAMES[k] }}
         </option>
@@ -36,7 +36,7 @@ function set(kind: string, ms = current.value?.duration_ms ?? 800) {
       <select
         :value="current?.duration_ms ?? 800"
         :disabled="!current"
-        aria-label="Длительность перехода"
+        aria-label="Transition duration"
         @change="
           set(current!.kind, Number(($event.target as HTMLSelectElement).value))
         "
@@ -46,7 +46,7 @@ function set(kind: string, ms = current.value?.duration_ms ?? 800) {
           :key="ms"
           :value="ms"
         >
-          {{ ms / 1000 }} с
+          {{ ms / 1000 }} s
         </option>
       </select>
     </div>

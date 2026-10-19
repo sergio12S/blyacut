@@ -126,7 +126,7 @@ try {
       0,
     ));
   test("Same-track overlap is explained before drop", () =>
-    assert.match(plan("v2", "move", -1000, "v").error, /пересека/));
+    assert.match(plan("v2", "move", -1000, "v").error, /overlap/));
   test("Audio moves between tracks without rippling its source", () => {
     const p = plan("a1", "move", 2500, "b");
     assert.equal(p.edits[0].track_id, "b");
@@ -193,7 +193,7 @@ try {
     const p = structuredClone(project);
     p.tracks[0].clips[0] = { ...p.tracks[0].clips[0], speed_milli: 2000 };
     const refused = planGesture(p, "v1", "trim-end", -100, "v", opts);
-    assert.match(refused.error, /инспекторе/);
+    assert.match(refused.error, /inspector/);
     assert.equal(planGesture(p, "v1", "move", 0, "v", opts).error, undefined);
   });
   test("Trim cannot extend past source duration or before source zero", () => {

@@ -285,7 +285,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         // Video looks
         r(
             "cinematic",
-            "Кино",
+            "Cinematic",
             vec![
                 Contrast { gain_milli: 1150 },
                 Saturation { gain_milli: 850 },
@@ -297,7 +297,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "vintage",
-            "Винтаж",
+            "Vintage",
             vec![
                 Sepia {},
                 FilmGrain { strength: 18 },
@@ -308,7 +308,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "noir",
-            "Нуар",
+            "Noir",
             vec![
                 Grayscale {},
                 Contrast { gain_milli: 1450 },
@@ -329,7 +329,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "dream",
-            "Сон",
+            "Dream",
             vec![
                 Blur { strength: 3 },
                 Brightness { gain_milli: 1100 },
@@ -338,7 +338,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "cyberpunk",
-            "Киберпанк",
+            "Cyberpunk",
             vec![
                 Temperature { kelvin: 11000 },
                 Saturation { gain_milli: 1600 },
@@ -348,12 +348,12 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "pixel-art",
-            "Пиксель-арт",
+            "Pixel art",
             vec![Pixelate { block: 12 }, Posterize { levels: 6 }],
         ),
         r(
             "comic",
-            "Комикс",
+            "Comic",
             vec![
                 Posterize { levels: 5 },
                 Sharpen { amount_milli: 1500 },
@@ -362,7 +362,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "warm",
-            "Тёплый свет",
+            "Warm light",
             vec![
                 Temperature { kelvin: 3800 },
                 Vibrance {
@@ -372,12 +372,12 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "cold",
-            "Холодный свет",
+            "Cold light",
             vec![Temperature { kelvin: 9500 }, Contrast { gain_milli: 1080 }],
         ),
         r(
             "pop",
-            "Сочные цвета",
+            "Pop colors",
             vec![
                 Vibrance {
                     intensity_milli: 900,
@@ -388,15 +388,15 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "sketch",
-            "Набросок",
+            "Sketch",
             vec![EdgeDetect {}, Invert {}, Grayscale {}],
         ),
-        r("negative", "Негатив", vec![Invert {}]),
-        r("mirror", "Зеркало", vec![Mirror {}]),
-        r("upside-down", "Вверх ногами", vec![Flip {}]),
+        r("negative", "Negative", vec![Invert {}]),
+        r("mirror", "Mirror", vec![Mirror {}]),
+        r("upside-down", "Upside down", vec![Flip {}]),
         r(
             "psychedelic",
-            "Психоделика",
+            "Psychedelic",
             vec![
                 Hue { degrees: 140 },
                 Saturation { gain_milli: 2200 },
@@ -405,18 +405,18 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "fade-in",
-            "Появление из чёрного",
+            "Fade in from black",
             vec![FadeFromBlack { duration_ms: 1000 }],
         ),
         r(
             "fade-out",
-            "Уход в чёрное",
+            "Fade out to black",
             vec![FadeToBlack { duration_ms: 1000 }],
         ),
         // Audio
         r(
             "telephone",
-            "Телефон",
+            "Telephone",
             vec![
                 HighPass { frequency_hz: 300 },
                 LowPass { frequency_hz: 3400 },
@@ -425,7 +425,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "radio",
-            "Радио",
+            "Radio",
             vec![
                 HighPass { frequency_hz: 500 },
                 LowPass { frequency_hz: 4500 },
@@ -435,22 +435,22 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
                 },
             ],
         ),
-        r("cathedral", "Собор", vec![Reverb { room_milli: 950 }]),
-        r("small-room", "Комната", vec![Reverb { room_milli: 300 }]),
-        r("chipmunk", "Бурундук", vec![Pitch { semitones: 7 }]),
+        r("cathedral", "Cathedral", vec![Reverb { room_milli: 950 }]),
+        r("small-room", "Small room", vec![Reverb { room_milli: 300 }]),
+        r("chipmunk", "Chipmunk", vec![Pitch { semitones: 7 }]),
         r(
             "demon",
-            "Демон",
+            "Demon",
             vec![
                 Pitch { semitones: -7 },
                 Bass { gain_db: 6 },
                 Reverb { room_milli: 400 },
             ],
         ),
-        r("robot", "Робот", vec![Robot {}]),
+        r("robot", "Robot", vec![Robot {}]),
         r(
             "underwater",
-            "Под водой",
+            "Underwater",
             vec![
                 LowPass { frequency_hz: 500 },
                 Chorus {},
@@ -462,7 +462,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "podcast",
-            "Чистый голос",
+            "Clean voice",
             vec![
                 HighPass { frequency_hz: 80 },
                 Denoise { strength_db: 12 },
@@ -475,7 +475,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "bass-boost",
-            "Мощный бас",
+            "Bass boost",
             vec![
                 Bass { gain_db: 9 },
                 Compressor {
@@ -498,7 +498,7 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "stadium",
-            "Стадион",
+            "Stadium",
             vec![
                 Echo {
                     delay_ms: 250,
@@ -507,12 +507,12 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
                 Reverb { room_milli: 800 },
             ],
         ),
-        r("chorus", "Хорус", vec![Chorus {}]),
-        r("flanger", "Флэнжер", vec![Flanger {}]),
-        r("phaser", "Фейзер", vec![Phaser {}]),
+        r("chorus", "Chorus", vec![Chorus {}]),
+        r("flanger", "Flanger", vec![Flanger {}]),
+        r("phaser", "Phaser", vec![Phaser {}]),
         r(
             "tremolo",
-            "Тремоло",
+            "Tremolo",
             vec![Tremolo {
                 frequency_milli: 6000,
                 depth_milli: 600,
@@ -520,14 +520,14 @@ pub fn builtin_recipes() -> Vec<EffectRecipe> {
         ),
         r(
             "auto-pan",
-            "Автопанорама",
+            "Auto-pan",
             vec![AutoPan {
                 frequency_milli: 500,
             }],
         ),
         r(
             "wide",
-            "Широкое стерео",
+            "Wide stereo",
             vec![StereoWiden { amount_milli: 2500 }],
         ),
     ]

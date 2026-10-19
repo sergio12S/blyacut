@@ -47,41 +47,41 @@ function move(positionMs = e.selection?.position_ms ?? 0) {
 <template>
   <div v-if="e.selection" class="audio-controls">
     <label class="volume"
-      ><span>Громкость</span>
+      ><span>Volume</span>
       <input
         v-model.number="gain"
         type="range"
         min="0"
         max="100"
         step="1"
-        aria-label="Громкость клипа, процентов"
+        aria-label="Clip volume, percent"
         @change="setAudio({})"
       /><output>{{ gain }} %</output></label
     >
     <div class="pair">
       <TimecodeField
-        label="Появление"
+        label="Fade in"
         :value="e.selection.fade_in_ms"
         @commit="setAudio({ fadeIn: $event })"
       />
       <TimecodeField
-        label="Затухание"
+        label="Fade out"
         :value="e.selection.fade_out_ms"
         @commit="setAudio({ fadeOut: $event })"
       />
     </div>
     <div class="pair">
       <TimecodeField
-        label="Позиция на таймлайне"
+        label="Timeline position"
         :value="e.selection.position_ms"
         :readonly="e.selectionTrack?.kind === 'video'"
         @commit="move($event)"
       />
       <label class="track"
-        ><span>Дорожка</span
+        ><span>Track</span
         ><select
           v-model="trackId"
-          aria-label="Дорожка клипа"
+          aria-label="Clip track"
           :disabled="tracks.length < 2"
           @change="move()"
         >
@@ -92,10 +92,10 @@ function move(positionMs = e.selection?.position_ms ?? 0) {
       >
     </div>
     <label v-if="e.selectionTrack?.kind === 'audio'" class="track"
-      ><span>Приглушать под голос</span
+      ><span>Duck under voice</span
       ><select
         :value="e.selection.duck_db ?? 0"
-        aria-label="Приглушение под голос"
+        aria-label="Duck under voice"
         @change="
           e.edit({
             operation: 'set_ducking',
@@ -104,16 +104,16 @@ function move(positionMs = e.selection?.position_ms ?? 0) {
           })
         "
       >
-        <option :value="0">Выкл.</option>
+        <option :value="0">Off</option>
         <option v-for="db in [6, 12, 18, 24]" :key="db" :value="db">
-          на {{ db }} дБ, пока звучит голос
+          by {{ db }} dB while voice plays
         </option>
       </select></label
     >
     <p class="note">
-      Изменения применяются сразу. Видео двигается перетаскиванием на таймлайне.
-      Голос — это звук главного видео и неприглушаемые звуковые клипы; в
-      мониторе приглушение не слышно, только в экспорте.
+      Changes apply immediately. Move video by dragging it on the timeline.
+      Voice = main-video sound and non-ducking audio clips; ducking is heard in
+      the export, not in the monitor.
     </p>
   </div>
 </template>

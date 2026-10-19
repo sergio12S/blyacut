@@ -40,9 +40,9 @@ A release executable can be built with `npm run tauri build`. Bundling is disabl
 
 ## Agent editing
 
-Open the **Агент** tab: (1) choose the agent's folder (optionally *Автономно*), (2) copy the ready "address" — a `claude mcp add …` command, a JSON `mcpServers` block for Claude Desktop/Cursor/Codex/Gemini, or the headless command — and (3) ask the agent for an edit. The tab shows live status ("Агент на связи · N вызовов"). The address is a command, not a URL: MCP runs the local `blyacut-mcp` bridge over stdio and it finds the window through a private, per-session file; no network port is opened.
+Open the **Agent** tab: (1) choose the agent's folder (optionally *Autonomous*), (2) copy the ready "address" — a `claude mcp add …` command, a JSON `mcpServers` block for Claude Desktop/Cursor/Codex/Gemini, or the headless command — and (3) ask the agent for an edit. The tab shows live status ("Agent connected · N calls"). The address is a command, not a URL: MCP runs the local `blyacut-mcp` bridge over stdio and it finds the window through a private, per-session file; no network port is opened.
 
-In the **Агент** tab, **Выбрать папку и включить…** authorizes one media/export folder and creates a private session config. Build `cargo build -p blyacut-mcp` once; the tab finds the bridge and shows the exact command or JSON to paste into your MCP host. Agent edits immediately appear in the desktop, share Undo/Redo, and use revision-checked transactions. Removals/large batches have a preview-and-apply flow unless you tick **Автономно**.
+In the **Agent** tab, **Choose folder and connect…** authorizes one media/export folder and creates a private session config. Build `cargo build -p blyacut-mcp` once; the tab finds the bridge and shows the exact command or JSON to paste into your MCP host. Agent edits immediately appear in the desktop, share Undo/Redo, and use revision-checked transactions. Removals/large batches have a preview-and-apply flow unless you tick **Autonomous**.
 
 Agents can also work with no app open: `blyacut-mcp --headless FOLDER --autonomous` is a complete local studio (import, title cards, edits, effects, frame previews, export with loudness report, save/open). See [MCP setup, headless studio and reproducible demo](docs/mcp.md).
 

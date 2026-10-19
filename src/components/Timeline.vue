@@ -25,10 +25,10 @@ const scroller = ref<HTMLElement>();
 const tracksScroller = ref<HTMLElement>();
 const notice = ref("");
 const labels: Record<GesturePlan["label"], string> = {
-  Move: "Перемещение",
-  Insert: "Вставка",
-  "Ripple trim": "Обрезка со сдвигом",
-  Trim: "Обрезка",
+  Move: "Move",
+  Insert: "Insert",
+  "Ripple trim": "Ripple trim",
+  Trim: "Trim",
 };
 const dropTarget = ref("");
 function acceptRecipe(event: DragEvent, clipId: string) {
@@ -221,7 +221,7 @@ function finish(event: PointerEvent) {
     return;
   }
   if (e.busy) {
-    notice.value = "Редактор занят — начните перетаскивание заново";
+    notice.value = "Editor is busy: start the drag again";
     return;
   }
   if (plan?.error) {
@@ -233,7 +233,7 @@ function finish(event: PointerEvent) {
 function cancel() {
   if (gesture.value) {
     clearGesture();
-    notice.value = "Перетаскивание отменено";
+    notice.value = "Drag cancelled";
   }
 }
 function keyboard(event: KeyboardEvent) {
@@ -248,7 +248,7 @@ watch(
   () => {
     if (gesture.value) {
       clearGesture();
-      notice.value = "Проект изменился — начните заново";
+      notice.value = "Project changed: start the drag again";
     }
   },
 );
@@ -276,41 +276,41 @@ function position(c: Clip) {
       <div class="toolbar-group">
         <button
           :disabled="!e.duration"
-          title="Разрезать в плейхеде (S)"
+          title="Split at playhead (S)"
           @click="e.split()"
         >
-          ✂ Разрезать</button
+          ✂ Split</button
         ><button
           :disabled="!e.selection"
-          title="Удалить (⌫)"
+          title="Delete (⌫)"
           @click="e.remove()"
         >
-          Удалить</button
+          Delete</button
         ><button
-          title="Дорожка наложений: картинка в картинке, логотипы, текст"
+          title="Overlay track: picture-in-picture, logos, text"
           @click="e.addVideoTrack()"
         >
-          ＋ Видео</button
-        ><button title="Добавить звуковую дорожку" @click="e.addAudioTrack()">
-          ＋ Звук
+          ＋ Video</button
+        ><button title="Add an audio track" @click="e.addAudioTrack()">
+          ＋ Audio
         </button>
         <button
           class="mode-toggle"
           :aria-pressed="magnetic"
           :disabled="!!gesture"
-          title="Видео склеивается без зазоров. Выключите, чтобы двигать клипы свободно."
+          title="Video closes gaps automatically. Turn off to move clips freely."
           @click="magnetic = !magnetic"
         >
-          Магнит
+          Magnetic
         </button>
         <button
           class="mode-toggle snap-toggle"
           :aria-pressed="snapping"
           :disabled="!!gesture"
-          title="Прилипание к краям клипов и плейхеду. ⌘ / Ctrl — временно отключить."
+          title="Snap to clip edges and the playhead. Hold ⌘ / Ctrl to bypass."
           @click="snapping = !snapping"
         >
-          Прилипание
+          Snap
         </button>
       </div>
       <label class="zoom"
@@ -320,7 +320,7 @@ function position(c: Clip) {
           type="range"
           min="15"
           max="160"
-          aria-label="Масштаб таймлайна"
+          aria-label="Timeline zoom"
           :disabled="!!gesture"
         />
         +</label
@@ -346,10 +346,10 @@ function position(c: Clip) {
               >{{ trackName(track.name)
               }}<small>{{
                 track.kind === "audio"
-                  ? "Звук"
+                  ? "Audio"
                   : isOverlayTrack(e.project, track)
-                    ? "Наложение"
-                    : "Главное видео"
+                    ? "Overlay"
+                    : "Main video"
               }}</small></span
             >
           </div>
@@ -387,7 +387,7 @@ function position(c: Clip) {
                   width: (clipLength(c) / 1000) * zoom + 'px',
                 }"
                 :data-clip-id="c.id"
-                :aria-label="`${e.project?.assets.find((a) => a.id === c.asset_id)?.name}, ${track.name}, ${time(c.position_ms)}, длительность ${time(clipLength(c))}`"
+                :aria-label="`${e.project?.assets.find((a) => a.id === c.asset_id)?.name}, ${track.name}, ${time(c.position_ms)}, duration ${time(clipLength(c))}`"
                 @pointerdown.stop="begin($event, c, track.id)"
                 @click.stop.prevent="
                   (event) => {
@@ -402,12 +402,12 @@ function position(c: Clip) {
                 <span
                   class="trim-handle start"
                   data-edge="start"
-                  title="Тяните, чтобы обрезать начало"
+                  title="Drag to trim the start"
                 />
                 <span
                   class="trim-handle end"
                   data-edge="end"
-                  title="Тяните, чтобы обрезать конец"
+                  title="Drag to trim the end"
                 />
                 <span
                   v-for="k in c.keyframes ?? []"
@@ -420,7 +420,7 @@ function position(c: Clip) {
                 <span
                   v-if="c.transition_in"
                   class="transition-mark"
-                  :title="`${TRANSITION_NAMES[c.transition_in.kind]} · ${c.transition_in.duration_ms / 1000} с`"
+                  :title="`${TRANSITION_NAMES[c.transition_in.kind]} · ${c.transition_in.duration_ms / 1000} s`"
                   :style="{
                     width: (c.transition_in.duration_ms / 2000) * zoom + 'px',
                   }"
@@ -460,8 +460,8 @@ function position(c: Clip) {
               </div>
               <span v-if="!track.clips.length" class="timeline-hint">{{
                 track.kind === "audio"
-                  ? "Перетащите сюда музыку или голос из библиотеки"
-                  : "Добавьте видео или титр из библиотеки"
+                  ? "Drop music or voice here from the library"
+                  : "Add video or a title from the library"
               }}</span>
             </div>
             <div
@@ -488,7 +488,7 @@ function position(c: Clip) {
       {{
         preview?.error ||
         notice ||
-        `${labels[preview?.label ?? "Move"]} · отпустите, чтобы применить · Esc — отмена · ⌘ — без прилипания`
+        `${labels[preview?.label ?? "Move"]} · release to apply · Esc to cancel · ⌘ to bypass snap`
       }}
     </div>
   </section>

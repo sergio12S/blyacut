@@ -55,11 +55,10 @@ fn preview_title_and_loudness_work_for_agents() {
     preview_frame(&e.project, 1000, &plain, 320).unwrap();
     let bg = pixel(&plain, 0.02, 0.02);
     assert!(bg[2] > 150 && bg[0] < 60, "background {bg:?}");
-    let any_white = (5..95).any(|i| {
-        pixel(&plain, i as f64 / 100.0, 0.4)
-            .iter()
-            .all(|c| *c > 200)
-    });
+    // Several rows: line breaks depend on the system font's width (Arial vs DejaVu).
+    let any_white = [0.3, 0.4, 0.5, 0.6, 0.7]
+        .iter()
+        .any(|y| (5..95).any(|i| pixel(&plain, i as f64 / 100.0, *y).iter().all(|c| *c > 200)));
     assert!(any_white, "no title glyphs rendered");
 
     // Effects are applied exactly as in export: invert turns the blue background yellow.

@@ -125,6 +125,7 @@ pub fn run_headless(root: PathBuf, autonomous: bool) -> Result<(), String> {
         |name, args| gateway.call(name, args),
     );
     session.wait_for_export();
+    gateway.wait_for_music_jobs();
     result
 }
 fn serve(

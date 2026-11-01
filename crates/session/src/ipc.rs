@@ -194,8 +194,17 @@ pub fn call(config_path: &Path, name: &str, arguments: Value) -> Result<Value> {
             .map_err(|e| e.to_string())?;
     let mut stream = UnixStream::connect(&config.socket_path)
         .map_err(|e| format!("Editor session unavailable: {e}"))?;
+    // Legacy synchronous rendering tools may legitimately run for minutes. The background
+    // job tools return promptly and retain the normal bounded timeout.
+    let response_timeout = match name {
+        "render_bass_visualizer"
+        | "render_dirty_phonk"
+        | "render_release_package"
+        | "render_music_previews" => Duration::from_secs(3600),
+        _ => Duration::from_secs(30),
+    };
     stream
-        .set_read_timeout(Some(Duration::from_secs(30)))
+        .set_read_timeout(Some(response_timeout))
         .map_err(|e| e.to_string())?;
     stream
         .set_write_timeout(Some(Duration::from_secs(5)))

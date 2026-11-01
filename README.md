@@ -50,6 +50,8 @@ In the **Agent** tab, **Choose folder and connect…** authorizes one media/expo
 
 Agents can also work with no app open: `blyacut-mcp --headless FOLDER --autonomous` is a complete local studio (import, title cards, edits, effects, frame previews, export with loudness report, save/open). See [MCP setup, headless studio and reproducible demo](docs/mcp.md).
 
+For music videos, MCP can make bass-reactive visualizers, compare short style previews, suggest energetic excerpts, produce thumbnail variants, and queue a full video plus three vertical Shorts. It can also build long, crossfaded loop mixes from chosen ranges. These create standalone files rather than timeline edits; excerpt selection is heuristic, and subtitle or word timings must be reviewed. See the [music studio workflow](docs/mcp.md#music-studio-workflow) and [loop mixes](docs/mcp.md#long-music-mixes-with-a-loopable-boundary).
+
 BlyaCut embeds no AI model by design: the connected agent brings its own. For subtitles the agent calls `extract_audio` (16 kHz mono WAV of a clip), transcribes it with its own speech-to-text, and sends the timed text back with `add_captions` (list or SRT), which lays legible captions on a Subtitles track. People can import an `.srt` file from the Titles tab. Pause detection and generative video/music are not implemented.
 
 ## Effect recipes and interface design

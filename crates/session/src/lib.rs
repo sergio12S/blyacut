@@ -3,6 +3,7 @@ pub mod effects;
 pub mod gateway;
 #[cfg(unix)]
 pub mod ipc;
+mod music_jobs;
 use blyacut_core::{id, Asset, Edit, Editor, Project, Result};
 use serde::{Deserialize, Serialize};
 use std::{

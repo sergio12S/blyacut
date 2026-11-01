@@ -1,5 +1,9 @@
 //! External processes always receive argument vectors, never shell strings.
+pub mod loopmix;
+pub mod music;
+pub mod release;
 pub mod studio;
+pub mod visualizer;
 use blyacut_core::{id, Asset, Project, Result, TrackKind};
 use std::{
     path::{Path, PathBuf},

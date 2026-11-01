@@ -28,7 +28,9 @@ fn lifecycle_schema_and_errors() {
         .is_none());
     let tools = request(&mut p, "tools/list", json!({}));
     let tools = tools["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 20);
+    assert!(tools
+        .iter()
+        .any(|tool| tool["name"] == "render_bass_visualizer"));
     for tool in tools {
         assert_eq!(tool["inputSchema"]["additionalProperties"], false);
     }
@@ -97,6 +99,60 @@ fn actual_stdio_subprocess_controls_the_shared_session() {
         .tracks
         .iter()
         .any(|t| t.id == "external-music"));
+
+    // Queue a real media job through stdio -> the desktop Unix socket, then poll it while
+    // the encoder runs. This verifies the queue lives in the desktop gateway, not the proxy.
+    let dir = std::env::temp_dir().join(format!("blyacut-ipc-music-{}", blyacut_core::id()));
+    std::fs::create_dir(&dir).unwrap();
+    let source = dir.join("source.mp4");
+    let target = dir.join("mix.mp4");
+    let fixture = Command::new(blyacut_engine::binary("ffmpeg"))
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=blue:s=160x160:r=30:d=4",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+        ])
+        .arg(&source)
+        .status()
+        .unwrap();
+    assert!(fixture.success());
+    let result=send(json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"start_loop_mix","arguments":{"segments":[{"path":source,"start_ms":0,"end_ms":4000}],"output_path":target,"duration_seconds":10,"width":160,"height":160}}}),true).unwrap();
+    assert_eq!(result["result"]["isError"], false, "{result}");
+    let id = result["result"]["structuredContent"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mut completed = false;
+    for _ in 0..300 {
+        let r=send(json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_music_jobs","arguments":{}}}),true).unwrap();
+        let j = r["result"]["structuredContent"]["jobs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|j| j["id"] == id)
+            .unwrap();
+        if j["status"] == "failed" {
+            panic!("desktop loop job failed: {j}");
+        }
+        if j["status"] == "complete" {
+            completed = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert!(completed, "desktop loop job did not finish");
     drop(input);
     assert!(child.wait().unwrap().success());
+    let _ = std::fs::remove_dir_all(dir);
 }

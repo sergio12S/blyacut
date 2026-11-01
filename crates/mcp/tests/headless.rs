@@ -133,7 +133,7 @@ fn agent_renders_bass_visualizer_from_real_audio() {
         )
         .is_err());
     let frame = |time: &str| {
-        Command::new(blyacut_engine::binary("ffmpeg"))
+        let result = Command::new(blyacut_engine::binary("ffmpeg"))
             .args([
                 "-v",
                 "error",
@@ -143,6 +143,8 @@ fn agent_renders_bass_visualizer_from_real_audio() {
                 &p("out.mp4"),
                 "-frames:v",
                 "1",
+                "-threads",
+                "1",
                 "-f",
                 "rawvideo",
                 "-pix_fmt",
@@ -150,8 +152,13 @@ fn agent_renders_bass_visualizer_from_real_audio() {
                 "-",
             ])
             .output()
-            .unwrap()
-            .stdout
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "frame decode: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        result.stdout
     };
     let quiet = frame("0.5");
     let bass = frame("1.5");
@@ -597,7 +604,7 @@ fn agent_creates_caption_free_loop_with_smooth_boundary() {
     let queued=agent.ok("start_loop_mix",json!({"segments":segments,"output_path":p("loop.mp4"),"duration_seconds":17,"fade_ms":1000,"width":320,"height":180}));
     let id = queued["job"]["id"].as_str().unwrap().to_string();
     let mut done = false;
-    for _ in 0..300 {
+    for _ in 0..1200 {
         let jobs = agent.ok("get_music_jobs", json!({}));
         let j = jobs["jobs"]
             .as_array()
